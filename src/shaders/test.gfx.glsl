@@ -39,7 +39,7 @@ layout(location = 3) out vec4 outColor3;
 #define LoopMax 256
 #define LenMax 1000.0
 #define NormalEPS 1e-4
-#define DistMin 2.0 * NormalEPS
+#define DistMin 1e-3
 
 float Time;
 int MatID;
@@ -87,6 +87,25 @@ vec2 pmod(vec2 suv, float div)
     float a = atan(suv.y, suv.x) + TAU - PI * 0.5 + PI / div;
     a = mod(a, TAU / div) + PI * 0.5 - PI / div - shift;
     return orbit(a) * length(suv);
+}
+
+// triplanar mapping
+// c is world space noise (or etc)
+// c.x=noise(P.zy), c.y=noise(P.xz), c.z=noise(P.xy)
+float trip(vec3 c, vec3 N)
+{
+    const float power = 1.0;
+    N = pow(abs(N), vec3(power));
+    return dot(c, N / dot(vec3(1), N));
+}
+
+// hacky version
+vec2 uvtrip(vec3 P, vec3 N)
+{
+    const float power = 1.0;
+    N = sign(N) * pow(abs(N), vec3(power));
+    N = N / dot(vec3(1), N);
+    return N.x * P.zy + N.y * P.xz + N.z * P.xy;
 }
 
 // ortho basis
@@ -202,11 +221,9 @@ float vnoise12(vec2 x)
     return md;
 }
 // fractal of voronoi(p+fbm)
-float cracknoise12(vec2 p)
+float cracknoise12(vec2 p, float g)
 {
     const int N = 3;
-    // groove
-    const float G = 0.05;
     const mat2 R = rot(GOLD) * 1.5;
 
     float a = 1.0;
@@ -216,12 +233,29 @@ float cracknoise12(vec2 p)
         // scalling
         vec2 q = p + fbm32(p * 1.5).xy;
         float n = vnoise12(q);
-        n = smoothstep(G, 0.0, n);
+        n = smoothstep(g, 0.0, n);
         v += a * vec2(n, 1);
         a *= 0.5;
         p *= R;
     }
-    return v.x / v.y;
+    return 1.0 - v.x / v.y;
+}
+// Cyclic Noise by nimitz (explained by jeyko)
+// https://www.shadertoy.com/view/3tcyD7
+// And edited by 0b5vr
+// https://scrapbox.io/0b5vr/Cyclic_Noise
+vec3 cyclic(vec3 p, float freq)
+{
+    const mat3 bnt = getBNT(vec3(1, 2, 3));
+    vec4 n = vec4(0);
+
+    for(int i = 0; i < 8; i++)
+    {
+        p += sin(p.yzx);
+        n += vec4(cross(cos(p), sin(p.zxy)), 1);
+        p *= bnt * freq;
+    }
+    return n.xyz / n.w;
 }
 
 // 
@@ -363,32 +397,23 @@ vec3 Microfacet_BRDF(Material mat, vec3 L, vec3 V, vec3 N, bool isSecondary)
 
 float sdBox(vec3 p, vec3 b)
 {
-    vec3 q = abs(p) - b;
-    return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+    vec3 d = abs(p) - b;
+    return min(max(d.x, max(d.y, d.z)), 0.0) + length(max(d, 0.0));
 }
 
-float sdTest(vec3 p)
+float sdPlane(vec3 p, vec3 n, float h)
 {
-    const float div = 2.0;
-    float iz = floor(p.z / div) * div;
-    p.z = mod(p.z, div) - div * 0.5;
-    float a = TAU * iz * 0.05;
-    p.xy *= rot(-a);
-    p.xy = pmod(p.xy, 3.0);
-    p.y -= 4.0;
-    return sdBox(p, vec3(1e5, 0.5, 0.5));
+    return dot(p, n) + h;
 }
 
-float sdLight(vec3 p)
+float sdWall(vec3 p)
 {
-    const float div = 2.0;
-    float iz = floor(p.z / div) * div;
-    p.z = mod(p.z, div) - div * 0.5;
-    float a = TAU * iz * 0.05;
-    p.xy *= rot(-a);
-    p.xy = pmod(p.xy, 3.0);
-    p.y -= 2.0;
-    return sdBox(p, vec3(1e5, 0.1, 0.1));
+    const vec3 RoomSize = vec3(2, 1, 4);
+    p.xy = mod(p.xy, RoomSize.xy) - 0.5 * RoomSize.xy;
+    // wall
+    float d = -p.z;
+    d = max(d, -sdBox(p, RoomSize * 0.4));
+    return d;
 }
 
 void opSDFMin(float sdf, inout float d, inout int mid)
@@ -407,8 +432,7 @@ float sdf(vec3 p)
     MatID = -1;
     float d = LenMax;
 
-    opSDFMin(sdTest(p), d, mid);
-    opSDFMin(sdLight(p), d, mid);
+    opSDFMin(sdWall(p), d, mid);
 
     return d;
 }
@@ -467,20 +491,44 @@ bool march(vec3 rd, vec3 ro, out vec3 rp)
 // .................................................................
 // 
 
+Material matConcrete(vec3 P, inout vec3 N)
+{
+    Material mat = Material();
+    vec2 uv = uvtrip(P, N);
+
+    vec3 fbm = fbm32(uv * 3.0 * vec2(3, 1));// gravity ydown
+    vec3 fbm2 = fbm32(uv * 96.0);
+    float crn = cracknoise12(uv * 2.0, 0.02);
+    // base*detail*crack
+    float bc = mix(0.6, 1.0, pow(fbm.y, 1.0)) * mix(0.8, 1.0, pow(fbm2.x, 3.0)) * pow(crn, 0.5);
+    // waku
+    vec2 auv = abs(fract(uv + (fbm2.yz - 0.5) * 0.01) - 0.5);
+    const float wakw = 0.005;
+    float wak = (1.0 - smoothstep(0.5 - wakw * 0.5, 0.5 - wakw, auv.x) * smoothstep(0.5 - wakw * 0.5, 0.5 - wakw, auv.y)) * fbm2.y;
+    wak = mix(1.0, 0.2, wak);
+    bc *= wak;
+    // scrach
+    vec3 cyc = cyclic(P * 3.0, 1.5);
+    float scr = smoothstep(0.3, 0.7, cyc.z);
+    bc *= mix(1.0, 0.7, scr);
+    // color
+    // const vec3 bcol = vec3(1), scol = vec3(108, 100, 89) / 150.0;
+    // mat.albedo = mix(bcol, scol, pow(fbm.z, 3.0)) * bc;
+    mat.albedo = saturate(vec3(1.3) * bc);
+    mat.roughness = mix(0.8, 1.0, pow(fbm.y, 3.0));
+    mat.metallic = 0.1;
+    // normal map
+    N = normalize(N + (fbm * 2.0 - 1.0) * 0.03 + cyc * 0.02);
+    return mat;
+}
+
 Material getMaterial(vec3 P, inout vec3 N)
 {
     Material mat = Material();
 
     if(MatID == 0)
     {
-        mat.albedo = vec3(1);
-        mat.roughness = 0.9;
-        mat.metallic = 0.1;
-    }
-    else if(MatID == 1)
-    {
-        mat.type = MAT_UNLIT;
-        mat.albedo = vec3(1, 0.1, 0.1);
+        mat = matConcrete(P, N);
     }
 
     return mat;
@@ -511,8 +559,8 @@ void pointLighting(vec3 P, vec3 lpos, float lmin, float lmax, out vec3 L, out fl
 
 vec3 directionalLighting(Material mat, vec3 P, vec3 V, vec3 N)
 {
-    vec3 L = normalize(vec3(-P.xy, -1));
-    vec3 lcol = vec3(0.5);
+    vec3 L = normalize(vec3(-1, 1, -1));
+    vec3 lcol = vec3(1);
     return Microfacet_BRDF(mat, L, V, N, false) * lcol;
 }
 
@@ -566,7 +614,7 @@ vec3 shading(inout vec3 P, vec3 V, vec3 N)
 
     // fake reflection
     // roughness補正が必要かも
-    col += scol * Microfacet_BRDF(mat, srd, V, N, true);
+    col += scol * Microfacet_BRDF(mat, srd, V, N, true) * mat.metallic;
 
     return col;
 }
@@ -615,8 +663,17 @@ void getRORD(out vec3 ro, out vec3 rd, out vec3 dir, vec2 suv)
     // ortho near
     float onear = -5.0;
 
-    ro = vec3(0, 0, Time);
-    dir = vec3(0, 0, 1);
+    float lt = mod(Time, 6.0);
+    if(lt < 3.0)
+    {
+        ro = vec3(0, Time, -5);
+        dir = normalize(vec3(-0.5, 0.5, 1));
+    }
+    else
+    {
+        ro = vec3(0, Time * 0.2, -1);
+        dir = normalize(vec3(-0.5, 0.5, 1));
+    }
 
     mat3 bnt = getBNT(dir);
     float zf = 1.0 / tan(fov * PI / 360.0);
@@ -640,12 +697,12 @@ void getRORD(out vec3 ro, out vec3 rd, out vec3 dir, vec2 suv)
 
 vec3 overlay(vec3 bcol, vec2 uv, vec2 suv)
 {
-    return bcol + fbm32(suv * 5.0) * .3;
+    return bcol;
 }
 
 vec3 postProcess(vec3 bcol, vec2 uv, vec2 suv)
 {
-    return bcol + cracknoise12(suv) * .3;
+    return bcol;
 }
 
 // 
