@@ -515,7 +515,7 @@ Material matConcrete(vec3 P, inout vec3 N)
     // const vec3 bcol = vec3(1), scol = vec3(108, 100, 89) / 150.0;
     // mat.albedo = mix(bcol, scol, pow(fbm.z, 3.0)) * bc;
     mat.albedo = saturate(vec3(1.3) * bc);
-    mat.roughness = mix(0.8, 1.0, pow(fbm.y, 3.0));
+    mat.roughness = mix(0.5, 1.0, pow(fbm.y, 3.0));
     mat.metallic = 0.1;
     // normal map
     N = normalize(N + (fbm * 2.0 - 1.0) * 0.03 + cyc * 0.02);
@@ -574,13 +574,13 @@ vec3 lighting(Material mat, vec3 P, vec3 V, vec3 N)
 vec3 secondaryShading(vec3 P, vec3 V, vec3 N)
 {
     Material mat = getMaterial(P, N);
-    if(mat.type == MAT_UNLIT)
-    {
-        return mat.albedo;
-    }
+    return mat.albedo * float(mat.type == MAT_UNLIT);
 
-    // maybe not needed?
-    return lighting(mat, P, V, N);
+    // if(mat.type == MAT_UNLIT)
+    // {
+    //     return mat.albedo;
+    // }
+    // return lighting(mat, P, V, N);
 }
 
 vec3 shading(inout vec3 P, vec3 V, vec3 N)
@@ -614,7 +614,9 @@ vec3 shading(inout vec3 P, vec3 V, vec3 N)
 
     // fake reflection
     // roughness補正が必要かも
-    col += scol * Microfacet_BRDF(mat, srd, V, N, true) * mat.metallic;
+    col += scol * Microfacet_BRDF(mat, srd, V, N, true);
+    // bad
+    // col += scol * Microfacet_BRDF(mat, srd, V, N, true)*mat.metallic;
 
     return col;
 }
