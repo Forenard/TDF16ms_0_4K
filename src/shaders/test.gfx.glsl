@@ -36,10 +36,12 @@ layout(location = 3) out vec4 outColor3;
 // ..%%%%...%%%%%%...%%%%...%%%%%...%%..%%..%%%%%%.
 // ................................................
 // 
-#define LoopMax 256
+#define LoopMax 128
 #define LenMax 1000.0
-#define NormalEPS 1e-4
-#define DistMin 1e-3
+#define NormalEPS 0.001
+#define DistMin 0.001
+// なんか、skyが見えるンゴねぇ
+// #define DistMin 1e-3
 
 float Time;
 int MatID;
@@ -60,6 +62,8 @@ const float GOLD = PI * (3.0 - sqrt(5.0));// 2.39996...
 #define remapc(x,a,b,c,d) clamp(remap(x,a,b,c,d),min(c,d),max(c,d))
 #define saturate(x) clamp(x,0.0,1.0)
 #define linearstep(a, b, x) min(max(((x) - (a)) / ((b) - (a)), 0.0), 1.0)
+#define opRepLim(p,c,l) ((p)-(c)*clamp(round((p)/(c)),-(l),(l)))
+#define opRepLimID(p,c,l) (clamp(round((p)/(c)),-(l),(l))+(l))
 #define rep(i,n) for(int i=0;i<n;i++)
 
 mat2 rot(float a)
@@ -395,27 +399,186 @@ vec3 Microfacet_BRDF(Material mat, vec3 L, vec3 V, vec3 N, bool isSecondary)
 // ........................
 // 
 
-float sdBox(vec3 p, vec3 b)
+// https://mercury.sexy/hg_sdf/
+float fOpUnionRound(float a, float b, float r)
 {
-    vec3 d = abs(p) - b;
-    return min(max(d.x, max(d.y, d.z)), 0.0) + length(max(d, 0.0));
+    vec2 u = max(vec2(r - a, r - b), vec2(0));
+    return max(r, min(a, b)) - length(u);
+}
+float fOpIntersectionRound(float a, float b, float r)
+{
+    vec2 u = max(vec2(r + a, r + b), vec2(0));
+    return min(-r, max(a, b)) + length(u);
+}
+float fOpDifferenceRound(float a, float b, float r)
+{
+    return fOpIntersectionRound(a, -b, r);
 }
 
+float sdBox(vec3 p, vec3 b)
+{
+    vec3 d = abs(p) - b * 0.5;
+    return min(max(d.x, max(d.y, d.z)), 0.0) + length(max(d, 0.0));
+}
 float sdPlane(vec3 p, vec3 n, float h)
 {
     return dot(p, n) + h;
 }
-
-float sdWall(vec3 p)
+float sdCylinder(vec3 p, vec2 h)
 {
-    const vec3 RoomSize = vec3(2, 1, 4);
-    p.xy = mod(p.xy, RoomSize.xy) - 0.5 * RoomSize.xy;
-    // wall
+    vec2 d = abs(vec2(length(p.xz), p.y)) - h;
+    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+}
+float sdVerticalCapsule(vec3 p, float h, float r)
+{
+    p.y -= clamp(p.y, 0.0, h);
+    return length(p) - r;
+}
+float sdCappedCylinder(vec3 p, float h, float r)
+{
+    vec2 d = abs(vec2(length(p.xz), p.y)) - vec2(r, h);
+    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+}
+float sdTriPrism(vec3 p, vec2 h)
+{
+    vec3 q = abs(p);
+    return max(q.z - h.y, max(q.x * 0.866025 + p.y * 0.5, -p.y) - h.x * 0.5);
+}
+
+const vec2 RoomSize = vec2(5.7, 4) * 0.5;
+vec2 opRoomRep(inout vec3 p)
+{
+    vec2 ip = floor(p.xy / RoomSize) * RoomSize + RoomSize * 0.5;
+    p.xy = mod(p.xy, RoomSize) - 0.5 * RoomSize;
+    return ip;
+}
+
+// コンクリたてもの
+float sdConcrete(vec3 p)
+{
+    vec2 ip = opRoomRep(p);
+    vec3 h3 = pcg33(vec3(ip, 0));
+
+    // TODO:あれ
+    if(mod(ip.x, RoomSize.x * 2.0) < RoomSize.x)
+    {
+        return LenMax;
+    }
+
+    // ベースの壁
     float d = -p.z;
-    d = max(d, -sdBox(p, RoomSize * 0.4));
+    // 部屋のあな
+    d = fOpDifferenceRound(d, sdBox(p, vec3(RoomSize - 0.2, 2.0)), 0.01);
+    // 腰壁
+    d = min(d, -0.01 + sdBox(p - vec3(0, -RoomSize.y * 0.25, 0.1), vec3(RoomSize.x - 0.2, RoomSize.y * 0.3, 0.1)));
+    // 腰壁の穴
+    vec3 q = p - vec3(0, -RoomSize.y * 0.25, 0.1);
+    q.x = opRepLim(q.x, 0.1, 12);
+    d = fOpDifferenceRound(d, sdBox(q, vec3(0.06, RoomSize.y * 0.25, 0.15)), 0.01);
+    // 手すり
+    d = min(d, -0.01 + sdBox(p - vec3(0, -RoomSize.y * 0.1 - 0.025, 0), vec3(RoomSize.x - 0.2, 0.05, 0.2)));
+    // 何かのだんさ
+    d = min(d, -0.01 + sdBox(p - vec3(0, -0.5 * (RoomSize.y - 0.2) - 0.025, 0), vec3(RoomSize.x, 0.05, 0.2)));
     return d;
 }
 
+// 室外機
+float sdShitsugaiki(vec3 p)
+{
+    vec2 ip = opRoomRep(p);
+    vec3 h3 = pcg33(vec3(ip, 0));
+
+    // TODO:あれ
+    if(mod(ip.x, RoomSize.x * 2.0) < RoomSize.x)
+    {
+        return LenMax;
+    }
+
+    vec3 size = vec3(0.4, 0.28, 0.1);
+    p -= vec3(1.1, -0.74, -0.02);
+    vec3 q = p;
+
+    float d = -0.01 + sdBox(q, size);
+    vec3 q0 = q - vec3(-0.06, 0, -0.1);
+    d = fOpDifferenceRound(d, sdCappedCylinder(q0.xzy, 0.1, 0.1), 0.005);
+    q0.z -= 0.05;
+    d = min(d, -0.002 + sdCappedCylinder(q0.xzy, 0.02, 0.02));
+    // q0.x = opRepLim(q0.x, 0.01, 3);
+    vec3 q1 = q0;
+    q0.xy = pmod(q0.xy, 32.0);
+    d = fOpUnionRound(d, sdCappedCylinder(q0, 0.1, 0.002), 0.005);
+    // いらないかも ディテール
+    q1.z -= 0.02;
+    q1.xy = pmod(q1.xy * rot(PI / 32.0), 32.0);
+    d = fOpUnionRound(d, sdCappedCylinder(q1, 0.1, 0.002), 0.005);
+
+    return d;
+}
+
+float sdPipe(vec3 p)
+{
+    vec2 ip = opRoomRep(p);
+    vec3 h3 = pcg33(vec3(ip, 0));
+
+    // TODO:あれ
+    if(mod(ip.x, RoomSize.x * 2.0) > RoomSize.x)
+    {
+        return LenMax;
+    }
+
+    p -= vec3(-RoomSize.x * 0.45, 0, -0.035);
+    p.x = abs(p.x - 0.1) - 0.1;
+    float d = sdCappedCylinder(p, RoomSize.y * 0.51, 0.07);
+    p.y = mod(p.y, 1.0) - 0.5;
+    p.y = abs(p.y) - 0.06;
+    d = min(d, sdCappedCylinder(p, 0.02, 0.08));
+
+    d = min(d, sdCappedCylinder((p - vec3(-0.11, 0, 0)).yxz, 0.04, 0.01));
+    return d;
+}
+
+float sdFloor(vec3 p)
+{
+    // example
+    // p.y += (floor(Time) + pow(smoothstep(0.0, 1.0, fract(Time)), 0.3)) * RoomSize.y;
+
+    p.y += RoomSize.y * 0.2;
+    vec3 op = p;
+    vec2 ip = opRoomRep(p);
+    vec3 h3 = pcg33(vec3(ip, 0));
+
+    // TODO:あれ
+    if(mod(ip.x, RoomSize.x * 2.0) > RoomSize.x)
+    {
+        return LenMax;
+    }
+
+    // みぞ
+    const float w = 0.04;
+    op = abs(fract(op * 10.0) - 0.5);
+    float mizo = saturate(smoothstep(w, w * 0.5, op.x) + smoothstep(w, w * 0.5, op.y)) * 0.002;
+    // かべ
+    const float okuz = 3.0;
+    float kabe = -p.z + okuz;
+    // 階段
+    const float slope = RoomSize.x * 0.2;
+    float y = remapc(p.x, -RoomSize.x * 0.5 + slope, RoomSize.x * 0.5 - slope, 0.0, RoomSize.y);
+    const float haba = 0.1;
+    const vec3 si = vec3(RoomSize.x, RoomSize.y * 0.5, okuz);
+    const vec3 si2 = vec3(RoomSize.x - haba * 2.0, RoomSize.y * 0.5, okuz);
+    float d = sdBox(p - vec3(0, y - RoomSize.y, okuz * 0.5), si);
+    d = min(d, sdBox(p - vec3(0, y, okuz * 0.5), si));
+    d = fOpDifferenceRound(d, sdBox(p - vec3(0, y - RoomSize.y + haba, okuz * 0.5 + haba), si2), 0.01);
+    d = fOpDifferenceRound(d, sdBox(p - vec3(0, y + haba, okuz * 0.5 + haba), si2), 0.01);
+    d *= slope * 2.0 / sqrt(RoomSize.y * RoomSize.y + slope * slope * 4.0);// bound
+    // はしら
+    d = min(d, sdBox(p - vec3(0, 0, 0.5 + okuz * 0.5), vec3(RoomSize.x - slope * 2.0, RoomSize.y, okuz)));
+    // 奥の壁
+    d = min(d, kabe);
+    d -= 0.01;
+    d += mizo;
+    return d;
+}
 void opSDFMin(float sdf, inout float d, inout int mid)
 {
     if(sdf < d)
@@ -432,7 +595,10 @@ float sdf(vec3 p)
     MatID = -1;
     float d = LenMax;
 
-    opSDFMin(sdWall(p), d, mid);
+    opSDFMin(sdConcrete(p), d, mid);
+    opSDFMin(sdShitsugaiki(p), d, mid);
+    opSDFMin(sdFloor(p), d, mid);
+    opSDFMin(sdPipe(p), d, mid);
 
     return d;
 }
@@ -464,22 +630,28 @@ bool march(vec3 rd, vec3 ro, out vec3 rp)
     rep(i, LoopMax)
     {
         rp = ro + rd * len;
+        // ex) polar
+        // rp.xz = vec2((atan(rp.z, rp.x) + PI) / TAU * RoomSize.x * 10.0, length(rp.xz));
+        // rp.z -= 4.0;
+
         dist = sdf(rp);
 
-        vec3 bd = boxDist(rp, rd, vec3(2));
-        dist = min(dist, bd.z + DistMin);
+        // traverse
+        vec3 bd = boxDist(rp, rd, vec3(RoomSize, 1000));
+        dist = min(dist, bd.x + DistMin);
+        dist = min(dist, bd.y + DistMin);
 
         len += dist;
-        if(len > LenMax)
-        {
-            break;
-        }
         if(dist < DistMin)
         {
             return true;
         }
+        if(len > LenMax)
+        {
+            return false;
+        }
     }
-    return false;
+    return true;
 }
 
 // 
@@ -506,7 +678,7 @@ Material matConcrete(vec3 P, inout vec3 N)
     const float wakw = 0.005;
     float wak = (1.0 - smoothstep(0.5 - wakw * 0.5, 0.5 - wakw, auv.x) * smoothstep(0.5 - wakw * 0.5, 0.5 - wakw, auv.y)) * fbm2.y;
     wak = mix(1.0, 0.2, wak);
-    bc *= wak;
+    // bc *= wak;
     // scrach
     vec3 cyc = cyclic(P * 3.0, 1.5);
     float scr = smoothstep(0.3, 0.7, cyc.z);
@@ -522,16 +694,39 @@ Material matConcrete(vec3 P, inout vec3 N)
     return mat;
 }
 
+Material debugMat(vec3 p, inout vec3 N)
+{
+    Material mat = Material();
+    vec3 op = p;
+    vec2 ip = opRoomRep(p);
+    mat.type = MAT_UNLIT;
+    mat.albedo = pcg33(vec3(ip, MatID));
+    return mat;
+}
+
 Material getMaterial(vec3 P, inout vec3 N)
 {
     Material mat = Material();
 
-    if(MatID == 0)
-    {
-        mat = matConcrete(P, N);
-    }
+    // return debugMat(P, N);
+    // mat = matConcrete(P, N);
+    // if(MatID == 3)
+    // {
+    //     mat.albedo = vec3(0.9);
+    //     mat.metallic = 0.1;
+    // }
 
     return mat;
+}
+
+vec3 sky(vec3 rd)
+{
+    vec3 col = vec3(0);
+    vec3 scol = vec3(0.5, 0.6, 0.7);
+    vec3 ecol = vec3(0.8, 0.9, 1.0);
+    float t = 0.5 * (rd.y + 1.0);
+    col = mix(scol, ecol, t);
+    return vec3(1, 0, 0);
 }
 
 // 
@@ -559,7 +754,7 @@ void pointLighting(vec3 P, vec3 lpos, float lmin, float lmax, out vec3 L, out fl
 
 vec3 directionalLighting(Material mat, vec3 P, vec3 V, vec3 N)
 {
-    vec3 L = normalize(vec3(-1, 1, -1));
+    vec3 L = normalize(vec3(0.5, 1, -1));
     vec3 lcol = vec3(1);
     return Microfacet_BRDF(mat, L, V, N, false) * lcol;
 }
@@ -597,11 +792,16 @@ vec3 shading(inout vec3 P, vec3 V, vec3 N)
     // primary shading
     vec3 col = lighting(mat, P, V, N);
 
+    return col;
+
     // secondary ray
+    // TODO: あとで
     vec3 SP;
     vec3 srd = reflect(-V, N);
     vec3 sro = P;
-    if(!march(srd, sro, SP))
+
+    bool ishit = march(srd, sro, SP);
+    if(!ishit)
     {
         return col;
     }
@@ -610,6 +810,8 @@ vec3 shading(inout vec3 P, vec3 V, vec3 N)
     // avoid self-intersection
     SP += SN * DistMin;
     // secondary shading
+    // bad
+    //vec3 scol = ishit ? secondaryShading(SP, SV, SN) : sky(srd) / PI;
     vec3 scol = secondaryShading(SP, SV, SN);
 
     // fake reflection
@@ -636,12 +838,13 @@ vec3 tracer(vec3 rd, vec3 ro)
     vec3 rp;
     if(!march(rd, ro, rp))
     {
-        return vec3(0);// TODO:sky
+        return sky(rd);
     }
     vec3 N = getNormal(rp);
     vec3 col = shading(rp, -rd, N);
 
     return col;
+    return N * 0.5 + 0.5;
 }
 
 void getUV(out vec2 uv, out vec2 suv)
@@ -666,15 +869,11 @@ void getRORD(out vec3 ro, out vec3 rd, out vec3 dir, vec2 suv)
     float onear = -5.0;
 
     float lt = mod(Time, 6.0);
-    if(lt < 3.0)
+    // if(lt < 3.0)
     {
-        ro = vec3(0, Time, -5);
-        dir = normalize(vec3(-0.5, 0.5, 1));
-    }
-    else
-    {
-        ro = vec3(0, Time * 0.2, -1);
-        dir = normalize(vec3(-0.5, 0.5, 1));
+        ro = vec3(3 + Time, Time * 0.5, -3);
+        // ro = vec3(0, Time, 0);
+        dir = normalize(vec3(0.5, -0.5, 1));
     }
 
     mat3 bnt = getBNT(dir);
@@ -690,7 +889,7 @@ void getRORD(out vec3 ro, out vec3 rd, out vec3 dir, vec2 suv)
     {
         // ortho
         ord = dir;
-        oro += bnt * vec3(suv * osize, onear);
+        oro += bnt * vec3(suv * osize, onear) + ro;
     }
 
     rd = normalize(mix(ord, prd, persp));
