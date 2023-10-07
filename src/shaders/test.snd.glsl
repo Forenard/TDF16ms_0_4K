@@ -68,7 +68,7 @@ vec3 fbm32(vec2 p)
 
     float a = 1.0;
     vec4 v = vec4(0);
-    rep(i, N)
+    for (int i = 0; i < N; i ++)
     {
         v += a * vec4(perlin32(p), 1);
         a *= 0.5;
@@ -101,7 +101,7 @@ vec3 cyclic( vec3 p, float pump ) {
   vec4 sum = vec4( 0 );
   mat3 rot = getBNT( vec3( 2, -3, 1 ) );
 
-  rep( i, 5 ) {
+  for ( int i = 0; i < 5; i ++ ) {
     p *= rot;
     p += sin( p.zxy );
     sum += vec4( cross( cos( p ), sin( p.yzx ) ), 1 );
@@ -214,7 +214,7 @@ void main() {
       dest += 0.4 * sidechain * env * tanh( 2.0 * sin( TAU * phase ) );
     }
 
-    rep( i, 8 ) {
+    for ( int i = 0; i < 8; i ++ ) {
       vec3 dice = pcg33( vec3( i + 51 ) );
       vec2 dicei = boxMuller( dice.xy );
       float phase = t * p2f( 30.0 + CHORDS[ prog ] + 0.2 * dicei.x ) + dice.z;
@@ -251,7 +251,7 @@ void main() {
   }
 
   if ( inRangeB( beats.w, 64.0, 128.0 ) || beats.w >= 192.0 ) { // perc
-    rep( i, 16 ) {
+    for ( int i = 0; i < 16; i ++ ) {
       vec3 dice = pcg33( vec3( i ) + 4.995 );
       vec3 dice2 = pcg33( dice );
 
@@ -273,7 +273,7 @@ void main() {
     }
   }
 
-  rep( i, 64 ) { // chords
+  for ( int i = 0; i < 64; i ++ ) { // chords
     vec3 dice = pcg33( vec3( i ) );
     vec2 dicen = boxMuller( dice.xy );
 
@@ -297,7 +297,7 @@ void main() {
   if ( beats.w >= 128.0 ) { // arp
     vec2 sum=vec2(0);
 
-    rep( i, 64 ) {
+    for ( int i = 0; i < 64; i ++ ) {
       float t = float( ( frame - i * SAMPLES_PER_STEP ) % ( 64 * SAMPLES_PER_STEP ) ) / SAMPLES_PER_SEC;
 
       float fi = float( i );
