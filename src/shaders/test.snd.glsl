@@ -3,7 +3,6 @@
 #define saturate(i) clamp(i,0.,1.)
 #define linearstep(a,b,x) saturate(((x)-(a))/((b)-(a)))
 #define p2f(i) (exp2(((i)-69.)/12.)*440.)
-#define rep(i,n) for(int i=0;i<(n);i++)
 #define inRange(t,a,b) (step(a,t)*(1.-step(b,t)))
 #define inRangeB(t,a,b) ((a<=t)&&(t<b))
 
@@ -130,38 +129,10 @@ layout(location = 0) uniform int waveOutPosition;
   layout(local_size_x = 1) in;
 #endif
 
-vec2 shotgun( float t, float spread ) {
-  vec2 sum = vec2( 0.0 );
-
-  rep( i, 64 ) {
-    vec3 dice = pcg33( vec3( i ) );
-    sum += vec2( sin( TAU * t * exp2( spread * dice.x ) ) ) * rot( TAU * dice.y );
-  }
-
-  return sum / 64.0;
-}
-
-vec4 seq16( int seq, float st ) {
-  int sti = int( st );
-  int rotated = ( ( seq >> ( 15 - sti ) ) | ( seq << ( sti + 1 ) ) ) & 0xffff;
-
-  float prevStepBehind = log2( float( rotated & -rotated ) );
-  float prevStep = float( sti ) - prevStepBehind;
-  float nextStepForward = 16.0 - floor( log2( float( rotated ) ) );
-  float nextStep = float( sti ) + nextStepForward;
-
-  return vec4(
-    prevStep,
-    st - prevStep,
-    nextStep,
-    nextStep - st
-  );
-}
-
-float cheapFilterSaw( float phase, float k ) {
-  float wave = fract( phase );
-  float c = smoothstep( 1.0, 0.0, wave / k );
-  return ( wave + c ) * 2.0 - 1.0 - k;
+float i_cheapFilterSaw( float phase, float k ) {
+  float i_wave = fract( phase );
+  float i_c = smoothstep( 1.0, 0.0, i_wave / k );
+  return ( i_wave + i_c ) * 2.0 - 1.0 - k;
 }
 
 float CHORDS[] = float[](
@@ -219,7 +190,7 @@ void main() {
       vec2 dicei = boxMuller( dice.xy );
       float phase = t * p2f( 30.0 + CHORDS[ prog ] + 0.2 * dicei.x ) + dice.z;
 
-      float wave = tanh( 3.0 * cheapFilterSaw( phase, k ) );
+      float wave = tanh( 3.0 * i_cheapFilterSaw( phase, k ) );
       dest += 0.1 * sidechain * tanh( 2.0 * env * wave );
     }
   }
@@ -232,7 +203,12 @@ void main() {
     float decay = exp2( 5.0 + fract( 0.8 + 0.631 * vec3( st ) ).x );
     float env = smoothstep( 0.0, 0.001, q ) * exp( -decay * t );
 
-    vec2 wave = shotgun( 6000.0 * t, 2.0 );
+    // shotgun
+    vec2 wave = vec2( 0.0 );
+    for ( int i = 0; i < 64; i ++ ) {
+      vec3 dice = pcg33( vec3( i ) );
+      wave += vec2( sin( 37700.0 * t * exp2( 2.0 * dice.x ) ) ) * rot( TAU * dice.y ) / 64.0;
+    }
     dest += 0.3 * mix( 0.4, 1.0, sidechain ) * tanh( 2.0 * env * wave );
   }
 
@@ -289,7 +265,7 @@ void main() {
 
     { // pluck
       float k = 1.0 - mix( 0.9, 0.99, pog ) * exp( -mix( 3.0, 1.0, pog ) * t );
-      vec2 wave = vec2( cheapFilterSaw( phase, k ) );
+      vec2 wave = vec2( i_cheapFilterSaw( phase, k ) );
       dest += 0.03 * mix( 0.2, 1.0, sidechain ) * env * wave * rot( float( i ) );
     }
   }
