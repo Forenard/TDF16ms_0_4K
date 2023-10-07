@@ -64,7 +64,6 @@ const float GOLD = PI * (3.0 - sqrt(5.0));// 2.39996...
 #define linearstep(a, b, x) min(max(((x) - (a)) / ((b) - (a)), 0.0), 1.0)
 #define opRepLim(p,c,l) ((p)-(c)*clamp(round((p)/(c)),-(l),(l)))
 #define opRepLimID(p,c,l) (clamp(round((p)/(c)),-(l),(l))+(l))
-#define rep(i,n) for(int i=0;i<n;i++)
 
 mat2 rot(float a)
 {
@@ -191,7 +190,7 @@ vec3 fbm32(vec2 p)
 
     float a = 1.0;
     vec4 v = vec4(0);
-    rep(i, N)
+    for(int i = 0; i < N; i ++)
     {
         v += a * vec4(perlin32(p), 1);
         a *= 0.5;
@@ -211,7 +210,7 @@ vec3 fbm32(vec2 p)
 //     vec2 mg, mr;
 
 //     float md = 8.0;
-//     rep(i, 9)
+//     for(int i = 0; i < 9; i ++)
 //     {
 //         vec2 g = vec2(i % 3 - 1, i / 3 - 1);
 //         vec2 o = pcg33(vec3(n + g, magic)).xy;
@@ -227,7 +226,7 @@ vec3 fbm32(vec2 p)
 //     }
 
 //     md = 8.0;
-//     rep(i, 25)
+//     for(int i = 0; i < 25; i ++)
 //     {
 //         vec2 g = vec2(i % 5 - 2, i / 5 - 2);
 //         vec2 o = pcg33(vec3(n + g, magic)).xy;
@@ -248,7 +247,7 @@ vec3 fbm32(vec2 p)
 
 //     float a = 1.0;
 //     vec2 v = vec2(0);
-//     rep(i, N)
+//     for(int i = 0; i <  N; i ++)
 //     {
 //         // scalling
 //         vec2 q = p + fbm32(p * 1.5).xy;
@@ -806,7 +805,7 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
     float v = 1.0, ph = LenMax;
     float dist, len = 0.0;
 
-    rep(i, LoopMax)
+    for(int i = 0; i < LoopMax; i ++)
     {
         rp = ro + rd * len;
 
