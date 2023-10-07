@@ -57,6 +57,8 @@ int MatID;
 const float PI = acos(-1.0);
 const float TAU = 2.0 * PI;
 const float GOLD = PI * (3.0 - sqrt(5.0));// 2.39996...
+const vec3 k2000 = vec3(255, 137, 14) / 255.0;
+const vec3 k12000 = vec3(191, 211, 255) / 255.0;
 
 #define remap(x,a,b,c,d) ((((x)-(a))/((b)-(a)))*((d)-(c))+(c))
 #define remapc(x,a,b,c,d) clamp(remap(x,a,b,c,d),min(c,d),max(c,d))
@@ -190,7 +192,7 @@ vec3 fbm32(vec2 p)
 
     float a = 1.0;
     vec4 v = vec4(0);
-    for(int i = 0; i < N; i ++)
+    for(int i = 0; i < N; i++)
     {
         v += a * vec4(perlin32(p), 1);
         a *= 0.5;
@@ -805,7 +807,7 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
     float v = 1.0, ph = LenMax;
     float dist, len = 0.0;
 
-    for(int i = 0; i < LoopMax; i ++)
+    for(int i = 0; i < LoopMax; i++)
     {
         rp = ro + rd * len;
 
@@ -859,132 +861,52 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
 // .................................................................
 // 
 
-// Material matConcrete(vec3 P, inout vec3 N)
-// {
-//     Material mat = Material();
-//     vec2 uv = uvtrip(P, N);
-//     vec3 fbm = fbm32(uv * 3.0 * vec2(3, 1));// gravity ydown
-//     vec3 fbm2 = fbm32(uv * 96.0);
-//     float crn = cracknoise12(uv * 2.0, 0.02);
-//     // base*detail*crack
-//     float bc = mix(0.6, 1.0, pow(fbm.y, 1.0)) * mix(0.8, 1.0, pow(fbm2.x, 3.0)) * pow(crn, 0.5);
-//     // waku
-//     vec2 auv = abs(fract(uv + (fbm2.yz - 0.5) * 0.01) - 0.5);
-//     const float wakw = 0.005;
-//     float wak = (1.0 - smoothstep(0.5 - wakw * 0.5, 0.5 - wakw, auv.x) * smoothstep(0.5 - wakw * 0.5, 0.5 - wakw, auv.y)) * fbm2.y;
-//     wak = mix(1.0, 0.2, wak);
-//     // bc *= wak;
-//     // scrach
-//     vec3 cyc = cyclic(P * 3.0, 1.5);
-//     float scr = smoothstep(0.3, 0.7, cyc.z);
-//     bc *= mix(1.0, 0.7, scr);
-//     // color
-//     // const vec3 bcol = vec3(1), scol = vec3(108, 100, 89) / 150.0;
-//     // mat.albedo = mix(bcol, scol, pow(fbm.z, 3.0)) * bc;
-//     mat.albedo = saturate(vec3(1.3) * bc);
-//     mat.roughness = mix(0.5, 1.0, pow(fbm.y, 3.0));
-//     mat.metallic = 0.1;
-//     // normal map
-//     N = normalize(N + (fbm * 2.0 - 1.0) * 0.03 + cyc * 0.02);
-//     return mat;
-// }
-
-Material matConcrete(vec3 P, inout vec3 N)
-{
-    Material mat = Material();
-    vec2 uv = uvtrip(P, N);
-
-    vec3 fbm = fbm32(uv * 3.0 * vec2(3, 1));// gravity ydown
-    vec3 fbm2 = fbm32(uv * 96.0 * vec2(2, 1));
-
-    float bc = saturate(1.3 * mix(0.6, 1.0, fbm.y) * mix(0.8, 1.0, pow(fbm2.x, 3.0)));
-
-    mat.albedo = vec3(bc);
-    mat.roughness = mix(0.5, 1.0, pow(fbm.y, 3.0));
-    mat.metallic = 0.01;
-    // normal map
-    N = normalize(N + (fbm * 2.0 - 1.0) * 0.05);
-    return mat;
-}
-
-Material matCurtain(vec3 P, Material mat)
-{
-    vec2 ip = opRoomRep(P);
-    vec3 h3 = pcg33(vec3(ip.xx, 3.2));
-    float h = h3.x;
-    vec3 bcol = (h < 0.7 ? vec3(0.8, 0.7, 0.6) : (h < 0.8 ? vec3(0.8, 0.2, 0.2) : (h < 0.9 ? vec3(0.8, 0.6, 0.3) : vec3(0.5, 0.7, 0.8))));
-    mat.albedo = bcol;
-    mat.roughness = 0.99;
-    mat.metallic = 0.01;
-
-    return mat;
-}
-
-Material matMetal(vec3 P, Material mat)
-{
-    // mat.albedo *= vec3(1);
-    // mat.roughness = 0.1;
-    mat.metallic = 0.9;
-
-    return mat;
-}
-
-Material matPlastic(vec3 P, Material mat)
-{
-    mat.albedo *= vec3(1.5);
-    mat.roughness *= 0.3;
-    mat.metallic = 0.2;
-
-    return mat;
-}
-
-Material debugMat(vec3 p, inout vec3 N)
-{
-    Material mat = Material();
-    vec3 op = p;
-    vec2 ip = opRoomRep(p);
-    mat.type = MAT_UNLIT;
-    mat.albedo = pcg33(vec3(ip, MatID));
-    return mat;
-}
-
 Material getMaterial(vec3 P, inout vec3 N)
 {
     Material mat = Material();
-
-    // return debugMat(P, N);
-
-    if(MatID > 1)
-    {
-        mat = matConcrete(P, N);
-    }
+    // Mat:Concrete
+    vec2 uv = uvtrip(P, N);
+    vec3 fbm = fbm32(uv * 3.0 * vec2(3, 1));// gravity ydown
+    vec3 fbm2 = fbm32(uv * 96.0 * vec2(2, 1));
+    mat.albedo = vec3(saturate(1.3 * mix(0.6, 1.0, fbm.y) * mix(0.8, 1.0, pow(fbm2.x, 3.0))));
+    mat.roughness = mix(0.5, 1.0, pow(fbm.y, 3.0));
+    mat.metallic = 0.01;
+    N = normalize(N + (fbm * 2.0 - 1.0) * 0.05);
+    vec2 ip = opRoomRep(P);
 
     if(MatID == 0)
     {
+        // Mat:部屋のライト
         mat.type = MAT_UNLIT;
-        vec3 h3 = pcg33(vec3(-0.9, opRoomRep(P)));
-        vec3 bcol = mix(0.2, 1.0, float(h3.y < 0.9)) * temperature2RGB(mix(2000.0, 15000.0, h3.x));
-        mat.albedo = bcol;
+        vec3 h3 = pcg33(vec3(0.2, ip));
+        mat.albedo = (step(h3.y, 0.9) * 0.8 + 0.2) * mix(k2000, k12000, h3.x);
     }
     else if(MatID == 1)
     {
+        // Mat:階段のライト
         mat.type = MAT_UNLIT;
-        vec3 h3 = pcg33(vec3(floor(Time * 10.0), opRoomRep(P)));
-        float tika = float(h3.x < 0.95) * 0.5 + 0.5;
-        vec3 bcol = temperature2RGB(12000.0) * 2.0 * tika;
-        mat.albedo = bcol;
+        mat.albedo = k12000 * 2.0 * (step(pcg33(vec3(ip, floor(Time * 10.0))).x, 0.95) * 0.5 + 0.5);
     }
     else if(MatID == 3)
     {
-        mat = matCurtain(P, mat);
+        // Mat:カーテン
+        vec3 h3 = pcg33(vec3(0.2, ip));
+        float h = h3.x;
+        mat.albedo = (h < 0.7 ? vec3(0.8, 0.7, 0.6) : (h < 0.8 ? vec3(0.8, 0.2, 0.2) : (h < 0.9 ? vec3(0.8, 0.6, 0.3) : vec3(0.5, 0.7, 0.8))));
+        mat.roughness = 0.99;
+        mat.metallic = 0.01;
     }
     else if(MatID == 4)
     {
-        mat = matMetal(P, mat);
+        // Mat:金属
+        mat.metallic = 0.9;
     }
     else if(MatID == 5)
     {
-        mat = matPlastic(P, mat);
+        // Mat:プラスチック
+        mat.albedo *= vec3(1.5);
+        mat.roughness *= 0.3;
+        mat.metallic = 0.2;
     }
 
     return mat;
@@ -1057,14 +979,6 @@ vec3 sdfLighting(Material mat, vec3 P, vec3 V, vec3 N)
     vec3 lcol = lightmat.albedo * pow(1.0 / (1.0 + d), 2.0);
     col += Microfacet_BRDF(mat, L, V, N, false) * lcol;
 
-    // L = -normalize(k.xyy * sdRoomLight1(P + k.xyy * h) + k.yyx * sdRoomLight1(P + k.yyx * h) + k.yxy * sdRoomLight1(P + k.yxy * h) + k.xxx * sdRoomLight1(P + k.xxx * h));
-    // d = max(0.0, sdRoomLight1(P));
-    // _0 = N;
-    // MatID = 1;
-    // lightmat = getMaterial(P, _0);
-    // lcol = lightmat.albedo * pow(1.0 / (1.0 + d), 2.0);
-    // col += Microfacet_BRDF(mat, L, V, N, false) * lcol;
-
     L = -normalize(k.xyy * sdFloorLight0(P + k.xyy * h) + k.yyx * sdFloorLight0(P + k.yyx * h) + k.yxy * sdFloorLight0(P + k.yxy * h) + k.xxx * sdFloorLight0(P + k.xxx * h));
     d = max(0.0, sdFloorLight0(P));
     _0 = N;
@@ -1079,7 +993,6 @@ vec3 sdfLighting(Material mat, vec3 P, vec3 V, vec3 N)
 vec3 secondaryShading(vec3 P, vec3 V, vec3 N)
 {
     Material mat = getMaterial(P, N);
-    // return mat.albedo * float(mat.type == MAT_UNLIT);
 
     if(mat.type == MAT_UNLIT)
     {
@@ -1178,7 +1091,7 @@ void getRORD(out vec3 ro, out vec3 rd, out vec3 dir, out vec2 suv, vec2 uv)
     ro = vec3(1);
     dir = vec3(0, 0, 1);
     float lt = 0.0;
-    // Time += 105.0;
+    Time += 30.0;
     if(tl(0.0, 15.0, lt))
     {
         lt = pow(lt, 0.5);
