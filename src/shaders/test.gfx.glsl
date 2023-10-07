@@ -935,16 +935,10 @@ Material getMaterial(vec3 P, inout vec3 N)
 //     lint = c * w;
 // }
 
-// const vec3 DirectionalLight = normalize(vec3(0.5, 1, -1));
-// const vec3 _DirectionalLight = normalize(vec3(1, 1, -1));
-// const vec3 DirectionalLight = normalize(77.0 <= Time && Time < 90.0 ? vec3(_DirectionalLight.x, _DirectionalLight.zy * rot((Time - 77.0) / 13.0 * TAU)) : vec3(1, 1, -1));
-vec3 DirectionalLight = normalize(vec3(1, 1, -1));
-vec3 DirectionalLightColor = temperature2RGB(12000.0);
+const vec3 DirectionalLight = normalize(vec3(1, 1, -1));
 vec3 directionalLighting(Material mat, vec3 P, vec3 V, vec3 N)
 {
-    vec3 L = DirectionalLight;
-    vec3 lcol = DirectionalLightColor;
-    return Microfacet_BRDF(mat, L, V, N, false) * lcol;
+    return Microfacet_BRDF(mat, DirectionalLight, V, N, false) * k12000;
 }
 
 vec3 sky(vec3 rd)
@@ -990,77 +984,22 @@ vec3 sdfLighting(Material mat, vec3 P, vec3 V, vec3 N)
     return col;
 }
 
-vec3 secondaryShading(vec3 P, vec3 V, vec3 N)
-{
-    Material mat = getMaterial(P, N);
-
-    if(mat.type == MAT_UNLIT)
-    {
-        return mat.albedo;
-    }
-    vec3 col = vec3(0);
-    col += directionalLighting(mat, P, V, N);
-    col += sdfLighting(mat, P, V, N);
-    return col;
-}
-
-// cheap ao
-float calcAO(vec3 P, vec3 N)
-{
-    const float d = 0.05;
-    // N = normalize(N + (pcg33(vec3(P + Time)) - 0.5) * 0.5);
-    float ao = saturate(sdf(P + N * d) / d);
-    return sqrt(ao);
-}
-
 vec3 shading(inout vec3 P, vec3 V, vec3 N)
 {
     Material mat = getMaterial(P, N);
-    if(mat.type == MAT_UNLIT)
-    {
-        // unlit
-        return mat.albedo;
-    }
-
     // avoid self-intersection
     P += N * DistMin * 2.0;
-
     // directional shadow
     vec3 _rp;
     vec2 sh = march(DirectionalLight, P, _rp);
     float visible = sh.y;
-
     // primary shading
     vec3 col = vec3(0);
     col += visible * directionalLighting(mat, P, V, N);
     col += sdfLighting(mat, P, V, N);
-
     // ao
-    float ao = calcAO(P, N);
-    col *= ao;
-
-    // secondary ray
-    vec3 SP;
-    vec3 srd = reflect(-V, N);
-    vec3 sro = P;
-
-    bool ishit = march(srd, sro, SP).x > 0.5;
-    // if(!ishit)
-    // {
-    //     return col;
-    // }
-    vec3 SV = -srd;
-    vec3 SN = getNormal(SP);
-    // avoid self-intersection
-    SP += SN * DistMin * 2.0;
-    // secondary shading
-    vec3 scol = (ishit ? secondaryShading(SP, SV, SN) : sky(srd) / PI);
-    // vec3 scol = secondaryShading(SP, SV, SN);
-
-    // fake reflection
-    // 無理やりメタリック補正
-    col += visible * scol * Microfacet_BRDF(mat, srd, V, N, true) * mat.metallic;
-    return col;
+    col *= sqrt(saturate(sdf(P + N * 0.05) / 0.05));
+    return mix(col, mat.albedo, mat.type);
 }
 
 // 
