@@ -135,6 +135,12 @@ vec3 temperature2RGB(float temperature)
     return mix(clamp(vec3(m[0] / (vec3(clamp(temperature, 1000.0, 40000.0)) + m[1]) + m[2]), vec3(0.0), vec3(1.0)), vec3(1.0), smoothstep(1000.0, 0.0, temperature));
 }
 
+bool tl(float intime, float outtime, out float lt)
+{
+    lt = (Time - intime) / (outtime - intime);
+    return (0.0 <= lt && lt < 1.0);
+}
+
 // 
 // .%%..%%...%%%%...%%%%%%...%%%%...%%%%%%.
 // .%%%.%%..%%..%%....%%....%%......%%.....
@@ -532,9 +538,10 @@ float sdCurtain(vec3 p)
     vec3 ksize = vec3(RoomSize - 0.4, 0.01);
     vec3 kp = p;
     kp.x *= mix(1.1, 1.0, shimaru);
-    float lt = Time * 0.3;
+    float shf = h3.x * TAU;
+    float lt = Time * 0.5 + shf;
     // float kz = cos(kp.x * PI * 7.0) * 0.05 ;
-    float kz = cos(kp.x * PI + PI * cos(kp.x * 7.0)) * 0.05 + cos(kp.x * 2.0 + lt * 2.0 + 0.5 * cos(lt)) * 0.05;
+    float kz = cos(shf + kp.x * PI * 7.0 + 0.5 * PI * cos(kp.x * 7.0)) * 0.05 + cos(kp.x * 2.0 + lt * 2.0 + 0.5 * PI * cos(lt)) * 0.05;
     kp -= vec3(0, 0, 1.0 + kz * shimaru);
     float d = sdBox(kp, ksize) * 0.5 - 0.01;
 
@@ -605,7 +612,7 @@ float sdMetal(vec3 p)
     // float d = sdBoxFrame(q, vec3(0.2), 0.0) - 0.01;
     // d = min(d, sdVerticalCapsule(p - vec3(0, 0.8, 0.3), 0.2, 0.01));
 
-    // まるいライトの外枠
+    // まるいライトの土台
     // d = min(d, sdCappedCylinder(p - vec3(-1.0, -0.18, 0), 0.01, 0.075) - 0.01);
     float d = sdCappedCylinder(p - vec3(sign(h3.x - 0.5), -0.18, 0), 0.01, 0.075) - 0.01;
     return d;
@@ -678,7 +685,7 @@ float sdFloor(vec3 p)
     d = min(d, kabe);
     // 横の壁
     d -= 0.01;
-    d = d + mizo * 0.5;
+    d = d + mizo * 0.5 * float(Time < 65.0 || 75.0 <= Time);
     return d;
 }
 
@@ -733,9 +740,9 @@ float sdFloorLight0(vec3 p)
     }
 
     vec3 q = p;
-    q = vec3(abs(q.x) - RoomSize.x * 0.4, q.y + RoomSize.y * 0.34, q.z - 2.85);
+    q = vec3(abs(q.x) - RoomSize.x * 0.375, q.y + RoomSize.y * 0.365, q.z - 2.85);
     q.zy *= rot(0.3);
-    q.xy *= rot(0.4);
+    q.xy *= rot(0.65);
     float d = sdVerticalCapsule(q, RoomSize.x * 0.2, 0.02);
     return d;
 }
@@ -795,7 +802,7 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
 {
     const float w = 0.02;
     // const float w = 0.0;
-    const float minv = 0.2;
+    const float minv = 0.1;
     float v = 1.0, ph = LenMax;
     float dist, len = 0.0;
 
@@ -803,13 +810,18 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
     {
         rp = ro + rd * len;
 
-        // ex) polar
-        // rp.xz = vec2((atan(rp.z, rp.x) + PI) / TAU * RoomSize.x * 10.0, length(rp.xz));
-        // rp.z -= 4.0;
-
-        // ex) abs z
-        // rp.z = abs(rp.z) - 2.0;
-        // rp.z -= 2.0;
+        float _lt;
+        // abs z
+        if(tl(90.0, 105.0, _lt))
+        {
+            rp.z = abs(rp.z) - 2.0;
+        }
+        // polar
+        if(tl(105.0, 120.0, _lt))
+        {
+            rp.xz = vec2((atan(rp.z, rp.x) + PI) / TAU * RoomSize.x * 8.0, length(rp.xz));
+            rp.z -= 4.0;
+        }
 
         dist = sdf(rp);
 
@@ -888,11 +900,6 @@ Material matConcrete(vec3 P, inout vec3 N)
 
     float bc = saturate(1.3 * mix(0.6, 1.0, fbm.y) * mix(0.8, 1.0, pow(fbm2.x, 3.0)));
 
-    // vec2 ip = opRoomRep(P);
-    // vec3 h3 = pcg33(vec3(ip.xx, -1.2));
-    // float h = h3.x;
-    // vec3 bcol = (h < 0.6 ? vec3(1) : (h < 0.8 ? vec3(0.8, 0.2, 0.2) : (h < 0.9 ? vec3(0.8, 0.8, 0.2) : vec3(0.5, 0.5, 0.8))));
-
     mat.albedo = vec3(bc);
     mat.roughness = mix(0.5, 1.0, pow(fbm.y, 3.0));
     mat.metallic = 0.01;
@@ -927,7 +934,7 @@ Material matPlastic(vec3 P, Material mat)
 {
     mat.albedo *= vec3(1.5);
     mat.roughness *= 0.3;
-    mat.metallic = 0.1;
+    mat.metallic = 0.2;
 
     return mat;
 }
@@ -956,24 +963,18 @@ Material getMaterial(vec3 P, inout vec3 N)
     if(MatID == 0)
     {
         mat.type = MAT_UNLIT;
-        const vec3 col = temperature2RGB(4000.0);
-        mat.albedo = col;
+        vec3 h3 = pcg33(vec3(-0.9, opRoomRep(P)));
+        vec3 bcol = mix(0.2, 1.0, float(h3.y < 0.9)) * temperature2RGB(mix(2000.0, 15000.0, h3.x));
+        mat.albedo = bcol;
     }
-    // else if(MatID == 1)
-    // {
-    //     mat.type = MAT_UNLIT;
-    //     const vec3 col = temperature2RGB(8000.0);
-    //     mat.albedo = col;
-    // }
     else if(MatID == 1)
     {
         mat.type = MAT_UNLIT;
-        mat.albedo = temperature2RGB(12000.0) * 2.0;
+        vec3 h3 = pcg33(vec3(floor(Time * 10.0), opRoomRep(P)));
+        float tika = float(h3.x < 0.95) * 0.5 + 0.5;
+        vec3 bcol = temperature2RGB(12000.0) * 2.0 * tika;
+        mat.albedo = bcol;
     }
-    // else if(MatID == 3)
-    // {
-    //     mat = matConcrete(P, N);
-    // }
     else if(MatID == 3)
     {
         mat = matCurtain(P, mat);
@@ -986,10 +987,6 @@ Material getMaterial(vec3 P, inout vec3 N)
     {
         mat = matPlastic(P, mat);
     }
-    // else
-    // {
-    //     mat = matConcrete(P, N);
-    // }
 
     return mat;
 }
@@ -1017,11 +1014,15 @@ Material getMaterial(vec3 P, inout vec3 N)
 //     lint = c * w;
 // }
 
-const vec3 DirectionalLight = normalize(vec3(0.5, 1, -1));
+// const vec3 DirectionalLight = normalize(vec3(0.5, 1, -1));
+// const vec3 _DirectionalLight = normalize(vec3(1, 1, -1));
+// const vec3 DirectionalLight = normalize(77.0 <= Time && Time < 90.0 ? vec3(_DirectionalLight.x, _DirectionalLight.zy * rot((Time - 77.0) / 13.0 * TAU)) : vec3(1, 1, -1));
+vec3 DirectionalLight = normalize(vec3(1, 1, -1));
+vec3 DirectionalLightColor = temperature2RGB(12000.0);
 vec3 directionalLighting(Material mat, vec3 P, vec3 V, vec3 N)
 {
     vec3 L = DirectionalLight;
-    vec3 lcol = temperature2RGB(12000.0);
+    vec3 lcol = DirectionalLightColor;
     return Microfacet_BRDF(mat, L, V, N, false) * lcol;
 }
 
@@ -1039,6 +1040,7 @@ vec3 sky(vec3 rd)
     sun = smoothstep(0.8, 1.0, sun);
     col *= mix(1.0, 3.0, sun);
     col = mix(col, vec3(1.0), pow(linearstep(0.995, 1.0, sun * sun), 5.0));
+    col *= linearstep(1.0, 0.9, rd.y);
     return col;
 }
 
@@ -1118,11 +1120,12 @@ vec3 shading(inout vec3 P, vec3 V, vec3 N)
 
     // primary shading
     vec3 col = vec3(0);
-    col += directionalLighting(mat, P, V, N) * visible;
+    col += visible * directionalLighting(mat, P, V, N);
     col += sdfLighting(mat, P, V, N);
 
     // ao
-    col *= calcAO(P, N);
+    float ao = calcAO(P, N);
+    col *= ao;
 
     // secondary ray
     vec3 SP;
@@ -1144,7 +1147,7 @@ vec3 shading(inout vec3 P, vec3 V, vec3 N)
 
     // fake reflection
     // 無理やりメタリック補正
-    col += scol * Microfacet_BRDF(mat, srd, V, N, true) * mat.metallic;
+    col += visible * scol * Microfacet_BRDF(mat, srd, V, N, true) * mat.metallic;
     return col;
 }
 
@@ -1162,12 +1165,6 @@ const vec2 RES = resolution.xy;
 const vec2 ASP = RES / min(RES.x, RES.y);
 vec2 FocalUV = vec2(0.5);
 
-bool tl(float intime, float outtime, out float lt)
-{
-    lt = (Time - intime) / (outtime - intime);
-    return (0.0 <= lt && lt < 1.0);
-}
-
 void getRORD(out vec3 ro, out vec3 rd, out vec3 dir, out vec2 suv, vec2 uv)
 {
     // Parameter
@@ -1179,39 +1176,79 @@ void getRORD(out vec3 ro, out vec3 rd, out vec3 dir, out vec2 suv, vec2 uv)
     float osize = 2.5;
     float onear = 0.0;
 
-    suv = (uv - FocalUV) * 2.0 * ASP;
-
+    ro = vec3(1);
+    dir = vec3(0, 0, 1);
     float lt = 0.0;
-    // if(tl(0.0, 15.0, lt))
-    // {
-    //     lt = pow(lt, 0.5);
-    //     fov = 60.0;
-    //     ro = vec3(0.2, -1.5, 2.2);
-    //     dir = normalize(mix(vec3(0.5, 1.5, 1), vec3(0.1, 0.2, 1), lt));
-    // }
-    // else if(tl(15.0, 30.0, lt))
-    // {
-    //     // lt = smoothstep(0.0, 1.0, pow(lt, 0.3));
-    //     lt = pow(lt, 0.5);
-    //     fov = mix(60.0, 90.0, lt);
-    //     fisheye = mix(0.0, 0.4, lt);
-    //     ro = mix(vec3(0.4, -1.5, 2.0), vec3(0.35, -0.5, 0.3), lt);
-
-    //     if(dot(orbit(PI * mix(0.1, -0.1, lt)), suv) < 0.0)
-    //     {
-    //         FocalUV = vec2(0.25, 0.5);
-    //         dir = normalize(mix(vec3(-0.5, -1, 1), vec3(0, 0, 1), lt));
-    //     }
-    //     else
-    //     {
-    //         FocalUV = vec2(0.75, 0.5);
-    //         dir = normalize(mix(vec3(-0.5, -1, -1), vec3(0, 0, -1), lt));
-    //     }
-    // }
-    Time = 12.0;
+    // Time += 105.0;
+    if(tl(0.0, 15.0, lt))
     {
-        ro = vec3(-0.2, -0.8, -10);
-        dir = normalize(vec3(0, 0, 1));
+        lt = pow(lt, 0.5);
+        ro = vec3(0.2, -1.5, 2.2);
+        dir = normalize(mix(vec3(0.5, 1.5, 1), vec3(0.1, 0.2, 1), lt));
+    }
+    else if(tl(15.0, 30.0, lt))
+    {
+        // lt = smoothstep(0.0, 1.0, pow(lt, 0.3));
+        lt = pow(lt, 0.5);
+        fov = mix(60.0, 90.0, lt);
+        fisheye = mix(0.0, 0.4, lt);
+        ro = mix(vec3(0.4, -1.5, 2.0), vec3(0.35, -0.5, 0.3), lt);
+
+        if(uv.x < 0.5)
+        {
+            FocalUV = vec2(0.25, 0.5);
+            dir = normalize(mix(vec3(-0.5, -1, 1), vec3(0, -1, 1), lt));
+        }
+        else
+        {
+            FocalUV = vec2(0.75, 0.5);
+            dir = normalize(mix(vec3(-0.5, -1, -1), vec3(0, 0, -1), lt));
+        }
+    }
+    else if(tl(30.0, 45.0, lt))
+    {
+        ro = vec3(mix(0.8 - RoomSize.x, -0.1, lt), -1.0, 0);
+        dir = normalize(vec3(-1, -0.1, 0.3));
+    }
+    else if(tl(45.0, 60.0, lt))
+    {
+        if(uv.x < 0.5)
+        {
+            FocalUV = vec2(0.25, 0.5);
+            ro = vec3(mix(-0.5, 0.2 - RoomSize.x, lt), -1.8, -0.3);
+            dir = normalize(vec3(1, 0.2, 0.8));
+        }
+        else
+        {
+            FocalUV = vec2(0.75, 0.5);
+            fov = 90.0;
+            ro = mix(vec3(0.4 - RoomSize.x, -1, 0.7), vec3(-0.2, -1.5, 0.7), lt);
+            dir = normalize(vec3(-RoomSize.x * 0.8, -RoomSize.y * 0.5 + 0.5, -1) - ro);
+        }
+    }
+    else if(tl(60.0, 75.0, lt))
+    {
+        float z = floor(lt * 3.0) * 8.0 + fract(lt * 3.0);
+        ro = vec3(0, 0, -1.0 - z);
+        dir = vec3(0, 0, 1);
+    }
+    else if(tl(77.0, 90.0, lt))
+    {
+        float t = 20.0 * lt;
+        vec3 ta = vec3(-RoomSize.x * 0.5 + 0.3, t * RoomSize.y, 0.0);
+        ro = ta + vec3(mix(3, -3, lt), -5, -3);
+        dir = normalize(ta - ro);
+    }
+    else if(tl(90.0, 105.0, lt))
+    {
+        ro = vec3(-Time * 4.0, 0, 0);
+        dir = normalize(vec3(-1, mix(0.2, -0.2, lt), 0));
+    }
+    else if(tl(105.0, 120.0, lt))
+    {
+        ro = vec3(0, Time * 2.0, 0);
+        dir = normalize(vec3(0, 1, mix(0.0, 1.0, lt)));
+        dir.xz *= rot(PI * lt);
     }
 
     suv = (uv - FocalUV) * 2.0 * ASP;
@@ -1249,7 +1286,6 @@ vec4 tracer(vec3 rd, vec3 ro)
     float depth = length(rp - ro);
     vec3 N = getNormal(rp);
     vec3 col = shading(rp, -rd, N);
-
     return vec4(col, depth);
 }
 
@@ -1298,7 +1334,7 @@ vec3 postprocess(vec3 col, vec3 seed)
     // noise乗せた方が雰囲気いいか？
     col += pcg33(seed) * 0.05;
     // 嘘 Gamma Correction
-    col = pow(col, vec3(0.9));
+    col = pow(col, vec3(0.8));
     // col = pow(col, vec3(0.4545));
     col = acesFilm(col);
     // カラグレ
@@ -1317,6 +1353,31 @@ vec3 postprocess(vec3 col, vec3 seed)
     {
         col *= 2.0 * abs(lt - 0.5);
     }
+    else if(tl(29.0, 31.0, lt))
+    {
+        col *= 2.0 * abs(lt - 0.5);
+    }
+    else if(tl(44.0, 46.0, lt))
+    {
+        col *= 2.0 * abs(lt - 0.5);
+    }
+    else if(tl(59.0, 61.0, lt))
+    {
+        col *= 2.0 * abs(lt - 0.5);
+    }
+    else if(tl(74.0, 77.0, lt))
+    {
+        col *= saturate(75.0 - Time);
+    }
+    else if(tl(119.0, 120.0, lt))
+    {
+        col *= 1.0 - lt;
+    }
+    else if(Time >= 120.0)
+    {
+        col *= 0.0;
+    }
+
     return col;
 }
 
@@ -1339,6 +1400,7 @@ void main()
     // Color Grading
     traced.rgb = postprocess(traced.rgb, vec3(-Time, 4.2 * uv));
     // traced.b = (isnan(traced.b) ? 1e9 : traced.b);
+    // traced.rgb = vec3(abs(fwidth(traced.a * 3.0)));
     outColor1 = max(vec4(0), traced);
 
     // DOF&Bloom
