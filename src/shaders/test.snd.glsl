@@ -76,35 +76,6 @@ vec2 boxMuller( vec2 xi ) {
   return r * orbit( TAU * t );
 }
 
-// ortho basis
-// https://en.wikipedia.org/wiki/Osculating_plane
-mat3 getBNT(vec3 T)
-{
-    // camera rotation (may not be needed)
-    // float cr = 0.0;
-    // vec3 N = vec3(sin(cr), cos(cr), 0.0);
-    T = normalize(T);
-    vec3 N = vec3(0, 1, 0);
-    vec3 B = normalize(cross(N, T));
-    N = normalize(cross(T, B));
-    return mat3(B, N, T);
-}
-
-vec3 cyclic( vec3 p, float pump ) {
-  vec4 sum = vec4( 0 );
-  mat3 rot = getBNT( vec3( 2, -3, 1 ) );
-
-  for ( int i = 0; i < 5; i ++ ) {
-    p *= rot;
-    p += sin( p.zxy );
-    sum += vec4( cross( cos( p ), sin( p.yzx ) ), 1 );
-    sum *= pump;
-    p *= 2.0;
-  }
-
-  return sum.xyz / sum.w;
-}
-
 layout(location = 0) uniform int waveOutPosition;
 
 #if defined(EXPORT_EXECUTABLE)
@@ -228,15 +199,15 @@ void main() {
   if ( i_tenkaiClapActive ) { // clap
     float t = mod( time.y - B2T, 2.0 * B2T );
 
-    float env = mix(
+    float i_env = mix(
       exp( -80.0 * mod( t, 0.02 ) ),
       exp( -20.0 * t ),
       smoothstep( 0.02, 0.04, t )
     );
 
-    vec2 wave = cyclic( vec3( 4.0 * orbit( 1000.0 * t ), 480.0 * t ), 2.0 ).xy;
+    vec2 i_wave = fbm32( vec2( 4.0 * orbit( 1000.0 * t ) + 480.0 * t ) ).xy - 0.5;
 
-    dest += 0.1 * tanh( 3.0 * env * wave );
+    dest += 0.1 * tanh( 6.0 * i_env * i_wave );
   }
 
   if ( i_tenkaiPercActive ) { // perc
@@ -253,12 +224,12 @@ void main() {
       float env = exp( -exp2( 5.0 + 3.0 * dice.y ) * t );
 
       float freq = exp2( 8.0 + 8.0 * dice2.x );
-      vec2 wave = cyclic( vec3(
-        exp2( -2.0 + 4.0 * dice2.y ) * orbit( freq * t ),
-        exp2( -2.0 + 5.0 * dice2.z ) * freq * t
-      ), 2.0 ).xy;
+      vec2 wave = fbm32( vec2(
+        exp2( -2.0 + 4.0 * dice2.y ) * orbit( freq * t )
+        + exp2( -2.0 + 5.0 * dice2.z ) * freq * t
+      ) ).xy - 0.5;
 
-      dest += 0.08 * sidechain * tanh( 3.0 * env * wave );
+      dest += 0.08 * sidechain * tanh( 6.0 * env * wave );
     }
   }
 
