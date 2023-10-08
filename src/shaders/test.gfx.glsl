@@ -36,8 +36,6 @@ layout(location = 1) out vec4 outColor1;
 #define NormalEPS 0.001
 #define DistMin 0.001
 // #define DistMin 0.005
-// なんか、skyが見えるンゴねぇ
-// #define DistMin 1e-3
 
 float Time;
 int MatID;
@@ -477,45 +475,82 @@ vec2 opRoomRep(inout vec3 p)
     return ip;
 }
 
-// コンクリたてもの
 float sdConcrete(vec3 p)
 {
+    vec3 op = p;
     vec2 ip = opRoomRep(p);
     vec3 h3 = pcg33(vec3(ip, 0));
 
-    // TODO:共通化
+    float d;
+
     if(mod(ip.x, RoomSize.x * 2.0) < RoomSize.x)
     {
-        return LenMax;
+        // みぞ
+        const float w = 0.04;
+        op = abs(fract(op * 10.0) - 0.5);
+        float mizo = saturate(smoothstep(w, w * 0.5, op.x) + smoothstep(w, w * 0.5, op.y)) * 0.002;
+        // かいだん
+        const float slope = RoomSize.x * 0.2;
+        const float bd = slope * 2.0 / sqrt(RoomSize.y * RoomSize.y + slope * slope * 4.0);// bound
+        const float zo = 3.0;
+        float cy = linearstep(-RoomSize.x * 0.5 + slope, RoomSize.x * 0.5 - slope, p.x) * RoomSize.y + RoomSize.y * 0.25;
+        float fy = p.y - cy;
+        float fd = min(abs(fy), abs(fy + RoomSize.y)) - RoomSize.y * 0.25;
+        d = fd * bd;
+        d = max(d, -p.z);
+        d = min(d, -p.z + 3.0);
+        d = min(d, max(abs(p.x) - RoomSize.x * 0.5 + slope, -p.z + 0.5));
+        // d = d + mizo * 0.5 * float(Time < 65.0 || 75.0 <= Time);
+        d = d + mizo * 0.5;
+        // パイプ
+        p -= vec3(-RoomSize.x * 0.45, 0, -0.07);
+        p.x = abs(p.x - 0.1) - 0.1;
+        d = min(d, length(p.xz) - 0.07);
+        // パイプの金具
+        p.y = mod(p.y, 1.0) - 0.5;
+        p.y = abs(p.y) - 0.06;
+        d = min(d, sdCappedCylinder((p - vec3(-0.11, 0, 0)).yxz, 0.04, 0.01));
+        d = min(d, sdCappedCylinder(p, 0.02, 0.08));
+        return d;
     }
-
-    // ベースの壁
-    float d = -p.z;
-    // 部屋のあな
-    d = fOpDifferenceRound(d, sdBox(p, vec3(RoomSize - 0.2, 4.0)), 0.01);
-
+    {
+        // ベースの壁
+        d = -p.z;
+        // 部屋のあな
+        d = fOpDifferenceRound(d, sdBox(p, vec3(RoomSize - 0.2, 4.0)), 0.01);
     // 窓枠(窓は半透明なので、やるとしたら別処理)
-    vec3 mp = p - vec3(0, 0, 0.75);
-    mp.x = abs(mp.x);
-    vec2 rsize = RoomSize - 0.2;
-    d = fOpUnionRound(d, sdBox(mp, vec3(rsize, 0.05)), 0.01);
-    vec3 msize = vec3(rsize.x * 0.25 - 0.125, rsize.y * 0.75, 0.1);
-    d = fOpDifferenceRound(d, sdBox(mp - vec3(msize.x * 0.5 + 0.05, -msize.y * 0.1, 0), msize), 0.01);
-    msize.y *= 0.5;
-    d = fOpDifferenceRound(d, sdBox(mp - vec3(msize.x * 1.5 + 0.15, msize.y * 0.3, 0), msize), 0.01);
-
+        vec3 mp = p - vec3(0, 0, 0.75);
+        mp.x = abs(mp.x);
+        vec2 rsize = RoomSize - 0.2;
+        d = fOpUnionRound(d, sdBox(mp, vec3(rsize, 0.05)), 0.01);
+        vec3 msize = vec3(rsize.x * 0.25 - 0.125, rsize.y * 0.75, 0.1);
+        d = fOpDifferenceRound(d, sdBox(mp - vec3(msize.x * 0.5 + 0.05, -msize.y * 0.1, 0), msize), 0.01);
+        msize.y *= 0.5;
+        d = fOpDifferenceRound(d, sdBox(mp - vec3(msize.x * 1.5 + 0.15, msize.y * 0.3, 0), msize), 0.01);
     // 腰壁
-    d = min(d, -0.01 + sdBox(p - vec3(0, -RoomSize.y * 0.25, 0.1), vec3(RoomSize.x - 0.2, RoomSize.y * 0.3, 0.025)));
+        d = min(d, -0.01 + sdBox(p - vec3(0, -RoomSize.y * 0.25, 0.1), vec3(RoomSize.x - 0.2, RoomSize.y * 0.3, 0.025)));
     // 腰壁の穴
-    // TODO:カッコいい間隔の感じが分からん
-    vec3 q = p - vec3(0, -RoomSize.y * 0.25, 0.1);
-    q.x = opRepLim(q.x, 0.2, 12);
-    d = fOpDifferenceRound(d, sdBox(q, vec3(0.06, RoomSize.y * 0.25, 0.05)), 0.01);
+        vec3 q = p - vec3(0, -RoomSize.y * 0.25, 0.1);
+        q.x = opRepLim(q.x, 0.2, 12);
+        d = fOpDifferenceRound(d, sdBox(q, vec3(0.06, RoomSize.y * 0.25, 0.05)), 0.01);
     // 手すり
-    d = min(d, -0.01 + sdBox(p - vec3(0, -RoomSize.y * 0.1 - 0.025, 0), vec3(RoomSize.x - 0.2, 0.05, 0.2)));
-    // 何かのだんさ
-    d = min(d, -0.01 + sdBox(p - vec3(0, -0.5 * (RoomSize.y - 0.2) - 0.05, 0), vec3(RoomSize.x, 0.05, 0.15)));
-
+        d = min(d, -0.01 + sdBox(p - vec3(0, -RoomSize.y * 0.1 - 0.025, 0), vec3(RoomSize.x - 0.2, 0.05, 0.2)));
+    // 床の出っ張った部分
+        d = min(d, -0.01 + sdBox(p - vec3(0, -0.5 * (RoomSize.y - 0.2) - 0.05, 0), vec3(RoomSize.x, 0.05, 0.15)));
+    // まるいライトの土台
+        d = fOpUnionRound(d, sdCappedCylinder(p - vec3(sign(h3.x - 0.5), -0.18, 0), 0.01, 0.075) - 0.01, 0.005);
+    // 室外機
+        const vec3 size = vec3(0.4, 0.28, 0.1);
+        vec3 q1 = p - vec3(1.1, -0.77, -0.02);
+        float d1 = -0.01 + sdBox(q1, size);
+        vec3 q2 = q1 - vec3(-0.06, 0, -0.1);
+        d1 = fOpDifferenceRound(d1, sdCappedCylinder(q2.xzy, 0.1, 0.1), 0.005);
+        q2.z -= 0.05;
+        d1 = min(d1, -0.002 + sdCappedCylinder(q2.xzy, 0.02, 0.02));
+        q2.xy = pmod(q2.xy, 32.0);
+        d1 = fOpUnionRound(d1, sdCappedCylinder(q2, 0.1, 0.002), 0.005);
+        d = min(d, d1);
+    }
     return d;
 }
 
@@ -545,147 +580,6 @@ float sdCurtain(vec3 p)
     return d;
 }
 
-// 室外機
-float sdPlastic(vec3 p)
-{
-    vec2 ip = opRoomRep(p);
-    vec3 h3 = pcg33(vec3(ip, 0));
-
-    // TODO:共通化
-    if(mod(ip.x, RoomSize.x * 2.0) < RoomSize.x)
-    {
-        // パイプ
-        p -= vec3(-RoomSize.x * 0.45, 0, -0.07);
-        p.x = abs(p.x - 0.1) - 0.1;
-        float d = sdCappedCylinder(p, RoomSize.y * 0.51, 0.07);
-        return d;
-    }
-
-    vec3 size = vec3(0.4, 0.28, 0.1);
-    p -= vec3(1.1, -0.77, -0.02);
-    vec3 q = p;
-
-    float d = -0.01 + sdBox(q, size);
-    vec3 q0 = q - vec3(-0.06, 0, -0.1);
-    d = fOpDifferenceRound(d, sdCappedCylinder(q0.xzy, 0.1, 0.1), 0.005);
-    q0.z -= 0.05;
-    d = min(d, -0.002 + sdCappedCylinder(q0.xzy, 0.02, 0.02));
-    // q0.x = opRepLim(q0.x, 0.01, 3);
-    vec3 q1 = q0;
-    q0.xy = pmod(q0.xy, 32.0);
-    d = fOpUnionRound(d, sdCappedCylinder(q0, 0.1, 0.002), 0.005);
-    // いらないかも 室外機内部のディテール
-    // q1.z -= 0.02;
-    // q1.xy = pmod(q1.xy * rot(PI / 32.0), 32.0);
-    // d = fOpUnionRound(d, sdCappedCylinder(q1, 0.1, 0.002), 0.005);
-
-    return d;
-}
-
-float sdMetal(vec3 p)
-{
-    vec2 ip = opRoomRep(p);
-    vec3 h3 = pcg33(vec3(ip, 0));
-
-    // TODO:共通化
-    if(mod(ip.x, RoomSize.x * 2.0) < RoomSize.x)
-    {
-        // パイプの金具
-        p -= vec3(-RoomSize.x * 0.45, 0, -0.07);
-        p.x = abs(p.x - 0.1) - 0.1;
-        p.y = mod(p.y, 1.0) - 0.5;
-        p.y = abs(p.y) - 0.06;
-        float d = sdCappedCylinder((p - vec3(-0.11, 0, 0)).yxz, 0.04, 0.01);
-        d = min(d, sdCappedCylinder(p, 0.02, 0.08));
-        return d;
-    }
-
-    // 天井のライトの外枠
-    // vec3 q = p;
-    // q -= vec3(0, 0.6, 0.3);
-    // const float a = atan(1.0, sqrt(2.0));
-    // q.zy *= rot(-a);
-    // q.xy *= rot(PI / 4.0);
-    // float d = sdBoxFrame(q, vec3(0.2), 0.0) - 0.01;
-    // d = min(d, sdVerticalCapsule(p - vec3(0, 0.8, 0.3), 0.2, 0.01));
-
-    // まるいライトの土台
-    // d = min(d, sdCappedCylinder(p - vec3(-1.0, -0.18, 0), 0.01, 0.075) - 0.01);
-    float d = sdCappedCylinder(p - vec3(sign(h3.x - 0.5), -0.18, 0), 0.01, 0.075) - 0.01;
-    return d;
-}
-
-// float sdPipe(vec3 p)
-// {
-//     vec2 ip = opRoomRep(p);
-//     vec3 h3 = pcg33(vec3(ip, 0));
-
-//     // TODO:共通化
-//     if(mod(ip.x, RoomSize.x * 2.0) > RoomSize.x)
-//     {
-//         return LenMax;
-//     }
-
-//     p -= vec3(-RoomSize.x * 0.45, 0, -0.035);
-//     p.x = abs(p.x - 0.1) - 0.1;
-//     float d = sdCappedCylinder(p, RoomSize.y * 0.51, 0.07);
-//     p.y = mod(p.y, 1.0) - 0.5;
-//     p.y = abs(p.y) - 0.06;
-//     d = min(d, sdCappedCylinder(p, 0.02, 0.08));
-
-//     d = min(d, sdCappedCylinder((p - vec3(-0.11, 0, 0)).yxz, 0.04, 0.01));
-//     return d;
-// }
-
-float sdFloor(vec3 p)
-{
-    // example
-    // p.y += (floor(Time) + pow(smoothstep(0.0, 1.0, fract(Time)), 0.3)) * RoomSize.y;
-
-    p.y += RoomSize.y * 0.2;
-    vec3 op = p;
-    vec2 ip = opRoomRep(p);
-    vec3 h3 = pcg33(vec3(ip, 0));
-
-    // TODO:共通化
-    if(mod(ip.x, RoomSize.x * 2.0) > RoomSize.x)
-    {
-        return LenMax;
-    }
-
-    // みぞ
-    const float w = 0.04;
-    op = abs(fract(op * 10.0) - 0.5);
-    float mizo = saturate(smoothstep(w, w * 0.5, op.x) + smoothstep(w, w * 0.5, op.y)) * 0.002;
-    // かべ
-    const float okuz = 3.0;
-    float kabe = -p.z + okuz;
-    // 階段
-    const float slope = RoomSize.x * 0.2;
-    float y = remapc(p.x, -RoomSize.x * 0.5 + slope, RoomSize.x * 0.5 - slope, 0.0, RoomSize.y);
-    const float haba = 0.11;
-    const vec3 si = vec3(RoomSize.x, RoomSize.y * 0.5, okuz);
-    const vec3 si2 = vec3(RoomSize.x - haba * 2.0, RoomSize.y * 0.5, okuz);
-    float d = sdBox(p - vec3(0, y - RoomSize.y, okuz * 0.5), si);
-    d = min(d, sdBox(p - vec3(0, y, okuz * 0.5), si));
-    d = fOpDifferenceRound(d, sdBox(p - vec3(0, y - RoomSize.y + haba, okuz * 0.5 + haba), si2), 0.01);
-    d = fOpDifferenceRound(d, sdBox(p - vec3(0, y + haba, okuz * 0.5 + haba), si2), 0.01);
-    d *= slope * 2.0 / sqrt(RoomSize.y * RoomSize.y + slope * slope * 4.0);// bound
-    // はしら&横の壁
-    const float w1 = 0.13;
-    const float s1 = slope - w1;
-    float d1 = -p.z + 0.5;
-    d1 = fOpDifferenceRound(d1, sdBox(vec3(abs(p.x), p.yz) - vec3(RoomSize.x * 0.5 - slope + s1 * 0.5, 0, 0), vec3(s1, 1e9, 6)), 0.01);
-    // d = min(d, sdBox(p - vec3(0, 0, 0.5 + okuz * 0.5), vec3(RoomSize.x - slope * 2.0, RoomSize.y, okuz)));
-    d = min(d, d1);
-    // 奥の壁
-    d = min(d, kabe);
-    // 横の壁
-    d -= 0.01;
-    d = d + mizo * 0.5 * float(Time < 65.0 || 75.0 <= Time);
-    return d;
-}
-
 float sdRoomLight0(vec3 p)
 {
     vec2 ip = opRoomRep(p);
@@ -700,33 +594,8 @@ float sdRoomLight0(vec3 p)
     return d;
 }
 
-// float sdRoomLight1(vec3 p)
-// {
-//     vec2 ip = opRoomRep(p);
-//     vec3 h3 = pcg33(vec3(ip, 0));
-
-//     return LenMax;
-
-//     // TODO:共通化
-//     if(mod(ip.x, RoomSize.x * 2.0) < RoomSize.x)
-//     {
-//         return LenMax;
-//     }
-
-//     // float d = sdSphere(p - vec3(1.0, -0.02, 0), 0.15);
-//     vec3 q = p;
-//     q -= vec3(0, 0.6, 0.3);
-//     const float a = atan(1.0, sqrt(2.0));
-//     q.zy *= rot(-a);
-//     q.xy *= rot(PI / 4.0);
-
-//     float d = sdBox(q, vec3(0.15));
-//     return d;
-// }
-
 float sdFloorLight0(vec3 p)
 {
-    p.y -= RoomSize.y * 0.1;
     vec2 ip = opRoomRep(p);
     vec3 h3 = pcg33(vec3(ip, 0));
 
@@ -736,11 +605,7 @@ float sdFloorLight0(vec3 p)
         return LenMax;
     }
 
-    vec3 q = p;
-    q = vec3(abs(q.x) - RoomSize.x * 0.375, q.y + RoomSize.y * 0.365, q.z - 2.85);
-    q.zy *= rot(0.3);
-    q.xy *= rot(0.65);
-    float d = sdVerticalCapsule(q, RoomSize.x * 0.2, 0.02);
+    float d = sdSphere(p - vec3(-RoomSize * 0.5 + 0.1, 2.9), 0.1);
     return d;
 }
 
@@ -761,14 +626,10 @@ float sdf(vec3 p)
     float d = LenMax;
 
     opSDFMin(sdRoomLight0(p), d, mid);
-    // opSDFMin(sdRoomLight1(p), d, mid);
     opSDFMin(sdFloorLight0(p), d, mid);
-    opSDFMin(sdConcrete(p), d, mid);
     opSDFMin(sdCurtain(p), d, mid);
-    opSDFMin(sdMetal(p), d, mid);
-    opSDFMin(sdPlastic(p), d, mid);
-    opSDFMin(sdFloor(p), d, mid);
-    // opSDFMin(sdPipe(p), d, mid);
+    opSDFMin(sdConcrete(p), d, mid);
+    // opSDFMin(sdFloor(p), d, mid);
 
     return d;
 }
@@ -798,7 +659,6 @@ vec3 boxDist(vec3 rp, vec3 rd, vec3 size)
 vec2 march(vec3 rd, vec3 ro, out vec3 rp)
 {
     const float w = 0.02;
-    // const float w = 0.0;
     const float minv = 0.1;
     float v = 1.0, ph = LenMax;
     float dist, len = 0.0;
@@ -860,30 +720,17 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
 Material getMaterial(vec3 P, inout vec3 N)
 {
     Material mat = Material();
-    // Mat:Concrete
-    vec2 uv = uvtrip(P, N);
-    vec3 fbm = fbm32(uv * 3.0 * vec2(3, 1));// gravity ydown
-    vec3 fbm2 = fbm32(uv * 96.0 * vec2(2, 1));
-    mat.albedo = vec3(saturate(1.3 * mix(0.6, 1.0, fbm.y) * mix(0.8, 1.0, pow(fbm2.x, 3.0))));
-    mat.roughness = mix(0.5, 1.0, pow(fbm.y, 3.0));
-    mat.metallic = 0.01;
-    N = normalize(N + (fbm * 2.0 - 1.0) * 0.05);
-    vec2 ip = opRoomRep(P);
 
-    if(MatID == 0)
+    vec2 uv = uvtrip(P, N);
+    vec2 ip = opRoomRep(P);
+    if(MatID == 0 || MatID == 1)
     {
         // Mat:部屋のライト
         mat.type = MAT_UNLIT;
         vec3 h3 = pcg33(vec3(0.2, ip));
         mat.albedo = (step(h3.y, 0.9) * 0.8 + 0.2) * mix(k2000, k12000, h3.x);
     }
-    else if(MatID == 1)
-    {
-        // Mat:階段のライト
-        mat.type = MAT_UNLIT;
-        mat.albedo = k12000 * 2.0 * (step(pcg33(vec3(ip, floor(Time * 10.0))).x, 0.95) * 0.5 + 0.5);
-    }
-    else if(MatID == 3)
+    else if(MatID == 2)
     {
         // Mat:カーテン
         vec3 h3 = pcg33(vec3(0.2, ip));
@@ -892,17 +739,15 @@ Material getMaterial(vec3 P, inout vec3 N)
         mat.roughness = 0.99;
         mat.metallic = 0.01;
     }
-    else if(MatID == 4)
+    else
     {
-        // Mat:金属
-        mat.metallic = 0.9;
-    }
-    else if(MatID == 5)
-    {
-        // Mat:プラスチック
-        mat.albedo *= vec3(1.5);
-        mat.roughness *= 0.3;
-        mat.metallic = 0.2;
+        // Mat:Concrete
+        vec3 fbm = fbm32(uv * 3.0 * vec2(3, 1));// gravity ydown
+        vec3 fbm2 = fbm32(uv * 96.0 * vec2(2, 1));
+        mat.albedo = vec3(saturate(1.3 * mix(0.6, 1.0, fbm.y) * mix(0.8, 1.0, pow(fbm2.x, 3.0))));
+        mat.roughness = mix(0.5, 1.0, pow(fbm.y, 3.0));
+        mat.metallic = 0.01;
+        N = normalize(N + (fbm * 2.0 - 1.0) * 0.05);
     }
 
     return mat;
@@ -1026,12 +871,12 @@ void getRORD(out vec3 ro, out vec3 rd, out vec3 dir, out vec2 suv, vec2 uv)
     ro = vec3(1);
     dir = vec3(0, 0, 1);
     float lt = 0.0;
-    Time += 30.0;
+    // Time = 68.0;
     if(tl(0.0, 15.0, lt))
     {
         lt = pow(lt, 0.5);
-        ro = vec3(0.2, -1.5, 2.2);
-        dir = normalize(mix(vec3(0.5, 1.5, 1), vec3(0.1, 0.2, 1), lt));
+        ro = vec3(0.2, 0.2, 2.2);
+        dir = normalize(mix(vec3(0.5, 1.5, 1), vec3(0.1, 0.1, 1), lt));
     }
     else if(tl(15.0, 30.0, lt))
     {
@@ -1039,7 +884,7 @@ void getRORD(out vec3 ro, out vec3 rd, out vec3 dir, out vec2 suv, vec2 uv)
         lt = pow(lt, 0.5);
         fov = mix(60.0, 90.0, lt);
         fisheye = mix(0.0, 0.4, lt);
-        ro = mix(vec3(0.4, -1.5, 2.0), vec3(0.35, -0.5, 0.3), lt);
+        ro = mix(vec3(0.4, 0.2, 2.0), vec3(0.35, 0.6, 0.2), lt);
 
         if(uv.x < 0.5)
         {
