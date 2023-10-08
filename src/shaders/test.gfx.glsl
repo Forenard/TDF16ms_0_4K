@@ -10,8 +10,6 @@
 
 layout(binding = 0) uniform sampler2D backBuffer0;
 layout(binding = 1) uniform sampler2D backBuffer1;
-layout(binding = 2) uniform sampler2D backBuffer2;
-layout(binding = 3) uniform sampler2D backBuffer3;
 layout(location = 0) uniform int waveOutPosition;
 #if defined(EXPORT_EXECUTABLE)
 vec2 resolution = vec2(SCREEN_XRESO, SCREEN_YRESO);
@@ -24,8 +22,6 @@ layout(location = 3) uniform vec2 resolution;
 
 layout(location = 0) out vec4 outColor0;
 layout(location = 1) out vec4 outColor1;
-layout(location = 2) out vec4 outColor2;
-layout(location = 3) out vec4 outColor3;
 
 // 
 // ..%%%%...%%.......%%%%...%%%%%....%%%%...%%.....

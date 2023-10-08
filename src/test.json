@@ -23,11 +23,11 @@
 	"renderSettings":	{
 		"pixelFormat":	0,
 		"enableMultipleRenderTargets":	true,
-		"numEnabledRenderTargets":	4,
+		"numEnabledRenderTargets":	2,
 		"enableBackBuffer":	true,
-		"enableMipmapGeneration":	true,
+		"enableMipmapGeneration":	false,
 		"textureFilter":	1,
-		"textureWrap":	1,
+		"textureWrap":	0,
 		"enableSwapIntervalControl":	true,
 		"swapInterval":	2
 	},
