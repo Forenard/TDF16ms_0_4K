@@ -70,10 +70,10 @@ vec3 fbm32(vec2 p)
     return v.xyz / v.w;
 }
 
-vec2 boxMuller( vec2 xi ) {
-  float r = sqrt( -2.0 * log( xi.x ) );
-  float t = xi.y;
-  return r * orbit( TAU * t );
+vec2 i_boxMuller( vec2 xi ) {
+  float i_r = sqrt( -2.0 * log( xi.x ) );
+  float i_t = xi.y;
+  return i_r * orbit( TAU * i_t );
 }
 
 layout(location = 0) uniform int waveOutPosition;
@@ -171,7 +171,7 @@ void main() {
 
     for ( int i = 0; i < 8; i ++ ) {
       vec3 dice = pcg33( vec3( i + 51 ) );
-      vec2 dicei = boxMuller( dice.xy );
+      vec2 dicei = i_boxMuller( dice.xy );
       float phase = t * i_p2f( 30.0 + CHORDS[ prog ] + 0.2 * dicei.x ) + dice.z;
 
       float wave = tanh( 3.0 * i_cheapFilterSaw( phase, k ) );
@@ -235,7 +235,7 @@ void main() {
 
   for ( int i = 0; i < 64; i ++ ) { // chords
     vec3 dice = pcg33( vec3( i ) );
-    vec2 dicen = boxMuller( dice.xy );
+    vec2 dicen = i_boxMuller( dice.xy );
 
     int i_frameOffset = int( exp2( 9.2 * i_pluckOffset ) ) * i + SAMPLES_PER_STEP;
     int i_frameNote = max( 0, frame - i_frameOffset ) % ( 3 * SAMPLES_PER_STEP );
