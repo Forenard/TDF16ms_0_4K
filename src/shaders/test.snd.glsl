@@ -1,11 +1,5 @@
 #version 430
 
-#define saturate(i) clamp(i,0.,1.)
-#define linearstep(a,b,x) saturate(((x)-(a))/((b)-(a)))
-#define p2f(i) (exp2(((i)-69.)/12.)*440.)
-#define inRange(t,a,b) (step(a,t)*(1.-step(b,t)))
-#define inRangeB(t,a,b) ((a<=t)&&(t<b))
-
 const float PI = acos( -1.0 );
 const float TAU = PI * 2.0;
 const float GOLD = PI * (3.0 - sqrt(5.0));// 2.39996...
@@ -129,6 +123,10 @@ layout(location = 0) uniform int waveOutPosition;
   layout(local_size_x = 1) in;
 #endif
 
+float i_p2f( float p ) {
+  return exp2( ( p - 69.0 ) / 12.0 ) * 440.0;
+}
+
 float i_cheapFilterSaw( float phase, float k ) {
   float i_wave = fract( phase );
   float i_c = smoothstep( 1.0, 0.0, i_wave / k );
@@ -157,9 +155,9 @@ void main() {
 
   bool i_tenkaiKickActive = beats.w >= 64.0;
   bool i_tenkaiBassActive = beats.w >= 32.0;
-  bool i_tenkaiHihatActive = inRangeB( beats.w, 32.0, 128.0 ) || beats.w >= 192.0;
-  bool i_tenkaiClapActive = inRangeB( beats.w, 64.0, 128.0 ) || beats.w >= 256.0;
-  bool i_tenkaiPercActive = inRangeB( beats.w, 64.0, 128.0 ) || beats.w >= 192.0;
+  bool i_tenkaiHihatActive = ( beats.w >= 32.0 && beats.w < 128.0 ) || beats.w >= 192.0;
+  bool i_tenkaiClapActive = ( beats.w >= 64.0 && beats.w < 128.0 ) || beats.w >= 256.0;
+  bool i_tenkaiPercActive = ( beats.w >= 64.0 && beats.w < 128.0 ) || beats.w >= 192.0;
   float i_pluckOffset = smoothstep( 160.0, 224.0, beats.w );
   float i_pluckFilterEnv = smoothstep( 256.0, 192.0, beats.w );
   // -- tenkai end ---------------------------------------------------------------------------------
@@ -196,14 +194,14 @@ void main() {
     float k = 0.55 - 0.4 * exp( -5.0 * t );
 
     {
-      float phase = t * p2f( 30.0 + CHORDS[ prog ] );
+      float phase = t * i_p2f( 30.0 + CHORDS[ prog ] );
       dest += 0.4 * sidechain * env * tanh( 2.0 * sin( TAU * phase ) );
     }
 
     for ( int i = 0; i < 8; i ++ ) {
       vec3 dice = pcg33( vec3( i + 51 ) );
       vec2 dicei = boxMuller( dice.xy );
-      float phase = t * p2f( 30.0 + CHORDS[ prog ] + 0.2 * dicei.x ) + dice.z;
+      float phase = t * i_p2f( 30.0 + CHORDS[ prog ] + 0.2 * dicei.x ) + dice.z;
 
       float wave = tanh( 3.0 * i_cheapFilterSaw( phase, k ) );
       dest += 0.1 * sidechain * tanh( 2.0 * env * wave );
@@ -278,7 +276,7 @@ void main() {
     float env = smoothstep( 0.0, 0.001, t ) * smoothstep( 0.0, 0.001, q ) * exp( -3.0 * t );
 
     int chordn = 4 + clamp( ( i_frameStart / SAMPLES_PER_STEP - TENKAI_CHORD_START_STEP ) / TENKAI_CHORD_LENGTH_STEP, 0, 4 );
-    float freq = p2f( 54.0 + CHORDS[ i % chordn + i_prog ] + 0.1 * clamp( dicen.x, -1.0, 1.0 ) );
+    float freq = i_p2f( 54.0 + CHORDS[ i % chordn + i_prog ] + 0.1 * clamp( dicen.x, -1.0, 1.0 ) );
     float phase = freq * time.z + dice.x;
 
     { // pluck
@@ -302,7 +300,7 @@ void main() {
 
       int arpseed = int( 21.0 * fract( 0.825 * fi ) );
       float note = 42.0 + CHORDS[ arpseed % 8 + prog ] + 12.0 * float( arpseed / 8 );
-      float freq = p2f(note);
+      float freq = i_p2f( note );
       vec2 phase = t * freq + pcg33( vec3( fi ) ).xy;
       phase += 0.4 * fbm32( vec2( 0.1 * phase.x ) ).xy;
 
