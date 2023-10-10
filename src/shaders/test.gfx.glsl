@@ -9,7 +9,7 @@
 // 
 
 layout(binding = 0) uniform sampler2D backBuffer0;
-layout(binding = 1) uniform sampler2D backBuffer1;
+// layout(binding = 1) uniform sampler2D backBuffer1;
 layout(location = 0) uniform int waveOutPosition;
 #if defined(EXPORT_EXECUTABLE)
 vec2 resolution = vec2(SCREEN_XRESO, SCREEN_YRESO);
@@ -20,8 +20,9 @@ layout(location = 2) uniform float time;
 layout(location = 3) uniform vec2 resolution;
 #endif
 
-layout(location = 0) out vec4 outColor0;
-layout(location = 1) out vec4 outColor1;
+out vec4 outColor0;
+// layout(location = 0) out vec4 outColor0;
+// layout(location = 1) out vec4 outColor1;
 
 // 
 // ..%%%%...%%.......%%%%...%%%%%....%%%%...%%.....
@@ -61,16 +62,15 @@ const vec3 k12000 = vec3(191, 211, 255) / 255.0;
 #define opRepLim(p,c,l) ((p)-(c)*clamp(round((p)/(c)),-(l),(l)))
 #define opRepLimID(p,c,l) (clamp(round((p)/(c)),-(l),(l))+(l))
 
-mat2 rot(float a)
-{
-    float c = cos(a);
-    float s = sin(a);
-    return mat2(c, -s, s, c);
-}
-
 vec2 orbit(float a)
 {
     return vec2(cos(a), sin(a));
+}
+
+mat2 rot(float x)
+{
+    vec2 v = orbit(x);
+    return mat2(v.x, v.y, -v.y, v.x);
 }
 
 vec2 fold(vec2 p, float a)
@@ -88,16 +88,6 @@ vec2 pmod(vec2 suv, float div)
     return orbit(a) * length(suv);
 }
 
-// triplanar mapping
-// c is world space noise (or etc)
-// c.x=noise(P.zy), c.y=noise(P.xz), c.z=noise(P.xy)
-float trip(vec3 c, vec3 N)
-{
-    const float power = 1.0;
-    N = pow(abs(N), vec3(power));
-    return dot(c, N / dot(vec3(1), N));
-}
-
 // hacky version
 vec2 uvtrip(vec3 P, vec3 N)
 {
@@ -105,29 +95,6 @@ vec2 uvtrip(vec3 P, vec3 N)
     N = sign(N) * pow(abs(N), vec3(power));
     N = N / dot(vec3(1), N);
     return N.x * P.zy + N.y * P.xz + N.z * P.xy;
-}
-
-// ortho basis
-// https://en.wikipedia.org/wiki/Osculating_plane
-mat3 getBNT(vec3 T)
-{
-    // camera rotation (may not be needed)
-    // float cr = 0.0;
-    // vec3 N = vec3(sin(cr), cos(cr), 0.0);
-    T = normalize(T);
-    vec3 N = vec3(0, 1, 0);
-    vec3 B = normalize(cross(N, T));
-    N = normalize(cross(T, B));
-    return mat3(B, N, T);
-}
-
-// from:https://www.shadertoy.com/view/4sc3D7
-// Valid from 1000 to 40000 K (and additionally 0 for pure full white)
-vec3 temperature2RGB(float temperature)
-{
-    // Values from: http://blenderartists.org/forum/showthread.php?270332-OSL-Goodness&p=2268693&viewfull=1#post2268693   
-    mat3 m = (temperature <= 6500.0) ? mat3(vec3(0.0, -2902.1955373783176, -8257.7997278925690), vec3(0.0, 1669.5803561666639, 2575.2827530017594), vec3(1.0, 1.3302673723350029, 1.8993753891711275)) : mat3(vec3(1745.0425298314172, 1216.6168361476490, -8257.7997278925690), vec3(-2666.3474220535695, -2173.1012343082230, 2575.2827530017594), vec3(0.55995389139931482, 0.70381203140554553, 1.8993753891711275));
-    return mix(clamp(vec3(m[0] / (vec3(clamp(temperature, 1000.0, 40000.0)) + m[1]) + m[2]), vec3(0.0), vec3(1.0)), vec3(1.0), smoothstep(1000.0, 0.0, temperature));
 }
 
 bool tl(float intime, float outtime, out float lt)
@@ -145,27 +112,14 @@ bool tl(float intime, float outtime, out float lt)
 // ........................................
 // 
 
-// http://www.jcgt.org/published/0009/03/02/
-uvec3 pcg3d(uvec3 v)
-{
-    v = v * 1664525u + 1013904223u;
-
-    v.x += v.y * v.z;
-    v.y += v.z * v.x;
-    v.z += v.x * v.y;
-
-    v ^= v >> 16u;
-
-    v.x += v.y * v.z;
-    v.y += v.z * v.x;
-    v.z += v.x * v.y;
-
-    return v;
-}
 vec3 pcg33(vec3 v)
 {
-    uvec3 u = pcg3d(floatBitsToUint(v));
-    return vec3(u) / float(0xffffffffu);
+    uvec3 x = floatBitsToUint(v);
+    const uint k = 1103515245u;
+    x = ((x >> 8U) ^ x.yzx) * k;
+    x = ((x >> 8U) ^ x.yzx) * k;
+    x = ((x >> 8U) ^ x.yzx) * k;
+    return vec3(x) / float(-1u);
 }
 vec3 perlin32(vec2 p)
 {
@@ -194,84 +148,6 @@ vec3 fbm32(vec2 p)
     }
     return v.xyz / v.w;
 }
-
-// // Voronoi - distances by iq
-// // https://www.shadertoy.com/view/ldl3W8
-// float vnoise12(vec2 x)
-// {
-//     const float magic = 1.98;
-//     vec2 n = floor(x);
-//     vec2 f = fract(x);
-
-//     vec2 mg, mr;
-
-//     float md = 8.0;
-//     for(int i = 0; i < 9; i ++)
-//     {
-//         vec2 g = vec2(i % 3 - 1, i / 3 - 1);
-//         vec2 o = pcg33(vec3(n + g, magic)).xy;
-//         vec2 r = g + o - f;
-//         float d = dot(r, r);
-
-//         if(d < md)
-//         {
-//             md = d;
-//             mr = r;
-//             mg = g;
-//         }
-//     }
-
-//     md = 8.0;
-//     for(int i = 0; i < 25; i ++)
-//     {
-//         vec2 g = vec2(i % 5 - 2, i / 5 - 2);
-//         vec2 o = pcg33(vec3(n + g, magic)).xy;
-//         vec2 r = g + o - f;
-
-//         if(dot(mr - r, mr - r) > 0.00001)
-//             md = min(md, dot(0.5 * (mr + r), normalize(r - mr)));
-//     }
-
-//     // return vec3(md, mr);
-//     return md;
-// }
-// // fractal of voronoi(p+fbm)
-// float cracknoise12(vec2 p, float g)
-// {
-//     const int N = 3;
-//     const mat2 R = rot(GOLD) * 1.5;
-
-//     float a = 1.0;
-//     vec2 v = vec2(0);
-//     for(int i = 0; i <  N; i ++)
-//     {
-//         // scalling
-//         vec2 q = p + fbm32(p * 1.5).xy;
-//         float n = vnoise12(q);
-//         n = smoothstep(g, 0.0, n);
-//         v += a * vec2(n, 1);
-//         a *= 0.5;
-//         p *= R;
-//     }
-//     return 1.0 - v.x / v.y;
-// }
-// // Cyclic Noise by nimitz (explained by jeyko)
-// // https://www.shadertoy.com/view/3tcyD7
-// // And edited by 0b5vr
-// // https://scrapbox.io/0b5vr/Cyclic_Noise
-// vec3 cyclic(vec3 p, float freq)
-// {
-//     const mat3 bnt = getBNT(vec3(1, 2, 3));
-//     vec4 n = vec4(0);
-
-//     for(int i = 0; i < 8; i++)
-//     {
-//         p += sin(p.yzx);
-//         n += vec4(cross(cos(p), sin(p.zxy)), 1);
-//         p *= bnt * freq;
-//     }
-//     return n.xyz / n.w;
-// }
 
 // 
 // .%%%%%...%%%%%...%%%%%...%%%%%%.
@@ -449,22 +325,13 @@ float sdCylinder(vec3 p, vec2 h)
 }
 float sdVerticalCapsule(vec3 p, float h, float r)
 {
-    p.y -= clamp(p.y, -h * 0.5, h * 0.5);
+    p.y -= clamp(p.y, 0.0, h);
     return length(p) - r;
 }
 float sdCappedCylinder(vec3 p, float h, float r)
 {
     vec2 d = abs(vec2(length(p.xz), p.y)) - vec2(r, h);
     return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
-}
-float sdTriPrism(vec3 p, vec2 h)
-{
-    vec3 q = abs(p);
-    return max(q.z - h.y, max(q.x * 0.866025 + p.y * 0.5, -p.y) - h.x * 0.5);
-}
-float sdSphere(vec3 p, float s)
-{
-    return length(p) - s;
 }
 
 const vec2 RoomSize = vec2(5.7, 4) * 0.5;
@@ -491,8 +358,8 @@ float sdf(vec3 p)
     // かいだん
     // みぞ
     const float w = 0.04;
-    op = abs(fract(op * 10.0) - 0.5);
-    float mizo = saturate(smoothstep(w, w * 0.5, op.x) + smoothstep(w, w * 0.5, op.y)) * 0.002;
+    tp = abs(fract(op * 10.0) - 0.5);
+    float mizo = dot(vec3(1), smoothstep(w, w * 0.5, tp)) / 3.0 * 0.002;
     // かいだん
     const float slope = RoomSize.x * 0.2;
     const float bd = slope * 2.0 / sqrt(RoomSize.y * RoomSize.y + slope * slope * 4.0);// bound
@@ -508,8 +375,9 @@ float sdf(vec3 p)
     fd = min(fd, length(tp.xz) - 0.07);
     // パイプの金具
     tp.y = abs(fract(tp.y) - 0.5) - 0.06;
-    fd = min(fd, sdCappedCylinder((tp - vec3(-0.11, 0, 0)).yxz, 0.04, 0.01));
-    fd = min(fd, sdCappedCylinder(tp, 0.02, 0.08));
+    fd = min(fd, sdVerticalCapsule((tp - vec3(-0.11, 0, 0)).yxz, 0.04, 0.01));
+    vec2 dd = abs(vec2(length(tp.xz), tp.y)) - vec2(0.08, 0.02);
+    fd = min(fd, min(max(dd.x, dd.y), 0.0) + length(max(dd, 0.0)));
     // 階段限定
     fd += isfloor;
 
@@ -518,36 +386,36 @@ float sdf(vec3 p)
     float hd = -p.z;
     // 部屋のあな
     hd = fOpDifferenceRound(hd, sdBox(p, vec3(RoomSize - 0.2, 4.0)), 0.01);
-    // 窓枠(窓は半透明なので、やるとしたら別処理)
+    // 窓枠
     tp = p - vec3(0, 0, 0.75);
     tp.x = abs(tp.x);
-    vec2 rsize = RoomSize - 0.2;
+    const vec2 rsize = RoomSize - 0.2;
     hd = fOpUnionRound(hd, sdBox(tp, vec3(rsize, 0.05)), 0.01);
-    vec3 msize = vec3(rsize.x * 0.25 - 0.125, rsize.y * 0.75, 0.1);
+    const vec3 msize = vec3(rsize.x * 0.25 - 0.125, rsize.y * 0.75, 0.1);
     hd = fOpDifferenceRound(hd, sdBox(tp - vec3(msize.x * 0.5 + 0.05, -msize.y * 0.1, 0), msize), 0.01);
-    msize.y *= 0.5;
-    hd = fOpDifferenceRound(hd, sdBox(tp - vec3(msize.x * 1.5 + 0.15, msize.y * 0.3, 0), msize), 0.01);
+    const vec3 msize2 = vec3(msize.x, msize.y * 0.5, msize.z);
+    hd = fOpDifferenceRound(hd, sdBox(tp - vec3(msize2.x * 1.5 + 0.15, msize2.y * 0.3, 0), msize2), 0.01);
     // 腰壁
     hd = min(hd, -0.01 + sdBox(p - vec3(0, -RoomSize.y * 0.25, 0.1), vec3(RoomSize.x - 0.2, RoomSize.y * 0.3, 0.025)));
     // 腰壁の穴
     tp = p - vec3(0, -RoomSize.y * 0.25, 0.1);
-    tp.x = opRepLim(tp.x, 0.2, 12);
+    tp.x = opRepLim(tp.x, 0.2, 6);
     hd = fOpDifferenceRound(hd, sdBox(tp, vec3(0.06, RoomSize.y * 0.25, 0.05)), 0.01);
     // 手すり
     hd = min(hd, -0.01 + sdBox(p - vec3(0, -RoomSize.y * 0.1 - 0.025, 0), vec3(RoomSize.x - 0.2, 0.05, 0.2)));
-    // 床の出っ張った部分
-    hd = min(hd, -0.01 + sdBox(p - vec3(0, -0.5 * (RoomSize.y - 0.2) - 0.05, 0), vec3(RoomSize.x, 0.05, 0.15)));
-    // まるいライトの土台
-    hd = fOpUnionRound(hd, sdCappedCylinder(p - vec3(sign(h3.x - 0.5), -0.18, 0), 0.01, 0.075) - 0.01, 0.005);
+    // // 床の出っ張った部分
+    // hd = min(hd, -0.01 + sdBox(p - vec3(0, -0.5 * (RoomSize.y - 0.2) - 0.05, 0), vec3(RoomSize.x, 0.05, 0.15)));
+    // // まるいライトの土台
+    // hd = fOpUnionRound(hd, sdVerticalCapsule(p - vec3(sign(h3.x - 0.5), -0.18, 0), 0.01, 0.075) - 0.01, 0.005);
     // 室外機
     const vec3 size = vec3(0.4, 0.28, 0.1);
     td = -0.01 + sdBox(p - vec3(1.1, -0.77, -0.02), size);
     tp = p - vec3(1.1, -0.77, -0.02) - vec3(-0.06, 0, -0.1);
-    td = fOpDifferenceRound(td, sdCappedCylinder(tp.xzy, 0.1, 0.1), 0.005);
+    td = fOpDifferenceRound(td, sdVerticalCapsule(tp.xzy, 0.1, 0.1), 0.005);
     tp.z -= 0.05;
-    td = min(td, -0.002 + sdCappedCylinder(tp.xzy, 0.02, 0.02));
+    td = min(td, -0.002 + sdVerticalCapsule(tp.xzy, 0.02, 0.02));
     tp.xy = pmod(tp.xy, 32.0);
-    td = fOpUnionRound(td, sdCappedCylinder(tp, 0.1, 0.002), 0.005);
+    td = fOpUnionRound(td, sdVerticalCapsule(tp, 0.1, 0.002), 0.005);
     hd = min(hd, td);
     // 部屋限定
     hd += isroom;
@@ -557,7 +425,7 @@ float sdf(vec3 p)
 
     // カーテン
     float shimaru = smoothstep(0.0, 1.5, 0.9 - p.y);
-    vec3 ksize = vec3(RoomSize - 0.4, 0.01);
+    const vec3 ksize = vec3(RoomSize - 0.4, 0.01);
     vec3 kp = p;
     kp.x *= mix(1.1, 1.0, shimaru);
     float shf = h3.x * TAU;
@@ -572,7 +440,7 @@ float sdf(vec3 p)
     d = min(d, td);
 
     // 部屋のライト
-    td2 = length(p - vec3(sign(h3.x - 0.5), -0.06, 0)) - 0.1;
+    td2 = length(p - vec3(sign(h3.x - 0.5), -0.09, 0)) - 0.1;
     // 部屋限定
     td2 += isroom;
     // 階段のライト
@@ -585,27 +453,6 @@ float sdf(vec3 p)
     MatID = (td < d ? 2 : MatID);
     d = min(d, td);
 
-    return d;
-}
-
-vec3 getNormal(vec3 p)
-{
-    const float h = NormalEPS;
-    const vec2 k = vec2(1, -1);
-    // keep matid
-    int mid = MatID;
-    vec3 n = normalize(k.xyy * sdf(p + k.xyy * h) + k.yyx * sdf(p + k.yyx * h) + k.yxy * sdf(p + k.yxy * h) + k.xxx * sdf(p + k.xxx * h));
-    MatID = mid;
-    return n;
-}
-
-vec3 boxDist(vec3 rp, vec3 rd, vec3 size)
-{
-    // shifted center
-    vec3 irp = (floor((rp + sign(rd) * size) / size) + 0.5) * size;
-    vec3 d = abs(irp - rp) - 0.5 * size;
-    d = max(d, 0.0);
-    d /= abs(rd);
     return d;
 }
 
@@ -643,10 +490,10 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
         ph = dist;
 
         // traverse
-        vec3 bd = boxDist(rp, rd, vec3(RoomSize, 1000));
-        bd += (rp.z < -2.0 ? 1e9 : 0.0);
-        dist = min(dist, bd.x + DistMin);
-        dist = min(dist, bd.y + DistMin);
+        vec2 irp = (floor((rp.xy + sign(rd.xy) * RoomSize) / RoomSize) + 0.5) * RoomSize;
+        vec2 bd = abs(irp - rp.xy) - 0.5 * RoomSize;
+        bd = max(bd, 0.0) / abs(rd.xy) + DistMin + float(rp.z < -1.0) * LenMax;
+        dist = min(dist, min(bd.x, bd.y));
 
         len += dist;
         if(dist < DistMin)
@@ -744,20 +591,14 @@ vec3 sdfLighting(Material mat, vec3 P, vec3 V, vec3 N)
     vec3 h3 = pcg33(vec3(0.1, ip));
     vec3 bcol = (step(h3.y, 0.9) * 0.8 + 0.2) * mix(k2000, k12000, h3.x);
 
+    bool isfloorB = fract(0.5 * ip.x / RoomSize.x) < 0.5;
+
     // 階段のライト
-    vec3 L = vec3(-RoomSize * 0.5 + 0.1, 2.9) - P;
+    vec3 L = (isfloorB ? vec3(-RoomSize * 0.5 + 0.1, 2.9) : vec3(sign(h3.x - 0.5), -0.06, 0)) - P;
     float l = length(L);
     L /= l;
-    float d = max(0.0, l - 1.0);
+    float d = max(0.0, l);
     vec3 lcol = bcol * pow(1.0 / (1.0 + d), 2.0);
-    col += Microfacet_BRDF(mat, L, V, N, false) * lcol;
-
-    // 部屋のライト
-    L = vec3(sign(h3.x - 0.5), -0.06, 0) - P;
-    l = length(L);
-    L /= l;
-    d = max(0.0, l);
-    lcol = bcol * pow(1.0 / (1.0 + d), 2.0);
     col += Microfacet_BRDF(mat, L, V, N, false) * lcol;
 
     return col;
@@ -795,16 +636,11 @@ const vec2 RES = resolution.xy;
 const vec2 ASP = RES / min(RES.x, RES.y);
 vec2 FocalUV = vec2(0.5);
 
-void getRORD(out vec3 ro, out vec3 rd, out vec3 dir, out vec2 suv, vec2 uv)
+void getRORD(out vec3 ro, out vec3 rd, out vec3 dir, vec2 suv)
 {
     // Parameter
     float fov = 60.0;
     float fisheye = 0.0;
-    // 0.0: ortho, 1.0: persp
-    float persp = 1.0;
-    // ortho size
-    float osize = 2.5;
-    float onear = 0.0;
 
     ro = vec3(1);
     dir = vec3(0, 0, 1);
@@ -812,28 +648,15 @@ void getRORD(out vec3 ro, out vec3 rd, out vec3 dir, out vec2 suv, vec2 uv)
     // Time = 68.0;
     if(tl(0.0, 15.0, lt))
     {
-        lt = pow(lt, 0.5);
-        ro = vec3(0.2, 0.2, 2.2);
+        ro = vec3(0.2, 0.2, mix(2.2, 1.5, lt));
         dir = normalize(mix(vec3(0.5, 1.5, 1), vec3(0.1, 0.1, 1), lt));
     }
     else if(tl(15.0, 30.0, lt))
     {
-        // lt = smoothstep(0.0, 1.0, pow(lt, 0.3));
-        lt = pow(lt, 0.5);
         fov = mix(60.0, 90.0, lt);
         fisheye = mix(0.0, 0.4, lt);
-        ro = mix(vec3(0.4, 0.2, 2.0), vec3(0.35, 0.6, 0.2), lt);
-
-        if(uv.x < 0.5)
-        {
-            FocalUV = vec2(0.25, 0.5);
-            dir = normalize(mix(vec3(-0.5, -1, 1), vec3(0, -1, 1), lt));
-        }
-        else
-        {
-            FocalUV = vec2(0.75, 0.5);
-            dir = normalize(mix(vec3(-0.5, -1, -1), vec3(0, 0, -1), lt));
-        }
+        ro = mix(vec3(0.4, 0.2, 2.0), vec3(0.35, 0.6, 0.4), lt);
+        dir = normalize(mix(vec3(-0.5, -1, -1), vec3(0, 0, -1), lt));
     }
     else if(tl(30.0, 45.0, lt))
     {
@@ -842,19 +665,8 @@ void getRORD(out vec3 ro, out vec3 rd, out vec3 dir, out vec2 suv, vec2 uv)
     }
     else if(tl(45.0, 60.0, lt))
     {
-        if(uv.x < 0.5)
-        {
-            FocalUV = vec2(0.25, 0.5);
-            ro = vec3(mix(-0.5, 0.2 - RoomSize.x, lt), -1.8, -0.3);
-            dir = normalize(vec3(1, 0.2, 0.8));
-        }
-        else
-        {
-            FocalUV = vec2(0.75, 0.5);
-            fov = 90.0;
-            ro = mix(vec3(0.4 - RoomSize.x, -1, 0.7), vec3(-0.2, -1.5, 0.7), lt);
-            dir = normalize(vec3(-RoomSize.x * 0.8, -RoomSize.y * 0.5 + 0.5, -1) - ro);
-        }
+        ro = vec3(mix(-0.5, 0.2 - RoomSize.x, lt), -1.8, -0.3);
+        dir = normalize(vec3(1, 0.2, 0.8));
     }
     else if(tl(60.0, 75.0, lt))
     {
@@ -881,29 +693,17 @@ void getRORD(out vec3 ro, out vec3 rd, out vec3 dir, out vec2 suv, vec2 uv)
         dir.xz *= rot(PI * lt);
     }
 
-    suv = (uv - FocalUV) * 2.0 * ASP;
-
     vec3 tebure = (fbm32(vec2(-4.2, Time * 0.1)) * 2.0 - 1.0) * 0.05;
     ro += tebure;
 
-    mat3 bnt = getBNT(dir);
+    vec3 N = vec3(0, 1, 0);
+    vec3 B = normalize(cross(N, dir));
+    N = normalize(cross(dir, B));
+    mat3 bnt = mat3(B, N, dir);
     float zf = 1.0 / tan(fov * PI / 360.0);
     zf -= zf * length(suv) * fisheye;
 
-    vec3 prd, pro, ord, oro;
-    {
-        // perspective
-        prd = normalize(bnt * vec3(suv, zf));
-        pro = ro;
-    }
-    {
-        // ortho
-        ord = dir;
-        oro += bnt * vec3(suv * osize, onear) + ro;
-    }
-
-    rd = normalize(mix(ord, prd, persp));
-    ro = mix(oro, pro, persp);
+    rd = normalize(bnt * vec3(suv, zf));
 }
 
 vec4 tracer(vec3 rd, vec3 ro)
@@ -914,7 +714,11 @@ vec4 tracer(vec3 rd, vec3 ro)
         return vec4(sky(rd), LenMax);
     }
     float depth = length(rp - ro);
-    vec3 N = getNormal(rp);
+    const float h = NormalEPS;
+    const vec2 k = vec2(1, -1);
+    int mid = MatID;
+    vec3 N = normalize(k.xyy * sdf(rp + k.xyy * h) + k.yyx * sdf(rp + k.yyx * h) + k.yxy * sdf(rp + k.yxy * h) + k.xxx * sdf(rp + k.xxx * h));
+    MatID = mid;
     vec3 col = shading(rp, -rd, N);
     return vec4(col, depth);
 }
@@ -927,12 +731,6 @@ vec4 tracer(vec3 rd, vec3 ro)
 // .%%...%%..%%..%%..%%%%%%..%%..%%.
 // .................................
 // 
-
-float getFocalPlane()
-{
-    const float lod = 3.0;
-    return textureLod(backBuffer1, FocalUV, lod).a;
-}
 
 float getcoc(float d, float focalPlane)
 {
@@ -1019,23 +817,27 @@ void main()
     vec2 uv = FC / RES;
     // TAA
     uv += (pcg33(vec3(FC, Time)).xy - 0.5) * 0.25 / RES;
+    vec2 suv = (uv - 0.5) * 2.0 * ASP;
 
     // Camera
-    vec2 suv;
     vec3 ro, rd, dir;
-    getRORD(ro, rd, dir, suv, uv);
+    getRORD(ro, rd, dir, suv);
 
     // Trace
     vec4 traced = tracer(rd, ro);
     // Color Grading
     traced.rgb = postprocess(traced.rgb, vec3(-Time, 4.2 * uv));
-    // traced.b = (isnan(traced.b) ? 1e9 : traced.b);
-    // traced.rgb = vec3(abs(fwidth(traced.a * 3.0)));
+    // TAA&MotionBlur
+    const float ema = 0.5;
+    vec4 back = texture(backBuffer0, uv);
+    outColor0 = mix(traced, back, ema);
+
+    /*
     outColor1 = max(vec4(0), traced);
 
     // DOF&Bloom
     vec4 col = vec4(0);
-    float focalPlane = getFocalPlane();
+    float focalPlane = textureLod(backBuffer1, FocalUV, 3.0).a;
     vec4 uvtex = texture(backBuffer1, uv);
     float depth = uvtex.a;
     float coc = getcoc(depth, focalPlane);
@@ -1067,4 +869,5 @@ void main()
     vec3 res = mix(col.rgb, back.rgb, ema);
     res = max(vec3(0), res);
     outColor0 = vec4(res, 1);
+    */
 }
