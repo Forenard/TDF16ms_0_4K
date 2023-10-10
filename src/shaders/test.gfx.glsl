@@ -73,21 +73,6 @@ mat2 rot(float x)
     return mat2(v.x, v.y, -v.y, v.x);
 }
 
-vec2 fold(vec2 p, float a)
-{
-    vec2 v = orbit(a);
-    p -= 2.0 * min(0.0, dot(p, v)) * v;
-    return p;
-}
-
-vec2 pmod(vec2 suv, float div)
-{
-    const float shift = 0.0;
-    float a = atan(suv.y, suv.x) + TAU - PI * 0.5 + PI / div;
-    a = mod(a, TAU / div) + PI * 0.5 - PI / div - shift;
-    return orbit(a) * length(suv);
-}
-
 bool tl(float intime, float outtime, out float lt)
 {
     lt = (Time - intime) / (outtime - intime);
@@ -228,17 +213,8 @@ float sdBox(vec3 p, vec3 b)
     vec3 d = abs(p) - b * 0.5;
     return min(max(d.x, max(d.y, d.z)), 0.0) + length(max(d, 0.0));
 }
-float sdVerticalCapsule(vec3 p, float h, float r)
-{
-    return length(p - vec3(0, clamp(p.y, 0.0, h), 0)) - r;
-}
-float sdCappedCylinder(vec3 p, float h, float r)
-{
-    vec2 d = abs(vec2(length(p.xz), p.y)) - vec2(r, h);
-    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
-}
 
-const vec2 RoomSize = vec2(5.7, 4) * 0.5;
+const vec2 RoomSize = vec2(6, 4) * 0.5;
 vec2 opRoomRep(inout vec3 p)
 {
     vec2 ip = floor(p.xy / RoomSize) * RoomSize + RoomSize * 0.5;
@@ -263,23 +239,23 @@ float sdf(vec3 p)
     // みぞ
     const float w = 0.04;
     tp = abs(fract(op * 10.0) - 0.5);
-    float mizo = dot(vec3(1), smoothstep(w, w * 0.5, tp)) / 3.0 * 0.002;
+    float mizo = dot(vec3(1), smoothstep(w, w * 0.5, tp)) / 3.0 * 0.001;
     // かいだん
     const float slope = RoomSize.x * 0.2;
     const float bd = slope * 2.0 / sqrt(RoomSize.y * RoomSize.y + slope * slope * 4.0);// bound
-    const float zo = 3.0;
     float cy = linearstep(-RoomSize.x * 0.5 + slope, RoomSize.x * 0.5 - slope, p.x) * RoomSize.y + RoomSize.y * 0.25;
     float fy = p.y - cy;
     float fd = min(min(max((min(abs(fy), abs(fy + RoomSize.y)) - RoomSize.y * 0.25) * bd, -p.z), -p.z + 3.0), max(abs(p.x) - RoomSize.x * 0.5 + slope, -p.z + 0.5));
-    // d = d + mizo * 0.5 * float(Time < 65.0 || 75.0 <= Time);
-    fd += mizo * 0.5;
+    fd += mizo;
     // パイプ
     tp = p - vec3(-RoomSize.x * 0.45, 0, -0.07);
     tp.x = abs(tp.x - 0.1) - 0.1;
     fd = min(fd, length(tp.xz) - 0.07);
     // パイプの金具
     tp.y = abs(fract(tp.y) - 0.5) - 0.06;
-    fd = min(fd, sdVerticalCapsule((tp - vec3(-0.11, 0, 0)).yxz, 0.04, 0.01));
+    // sdBox(p-vec3(0,h*0.5,0),vec3(0,h,0))-r;
+    // fd = min(fd, sdVerticalCapsule((tp - vec3(-0.11, 0, 0)).yxz, 0.04, 0.01));
+    fd = min(fd, sdBox(tp+vec3(0.1, 0, 0),vec3(0.05,0,0))-0.01);
     vec2 dd = abs(vec2(length(tp.xz), tp.y)) - vec2(0.08, 0.02);
     fd = min(fd, min(max(dd.x, dd.y), 0.0) + length(max(dd, 0.0)));
     // 階段限定
@@ -307,19 +283,20 @@ float sdf(vec3 p)
     hd = fOpDifferenceRound(hd, sdBox(tp, vec3(0.06, RoomSize.y * 0.25, 0.05)), 0.01);
     // 手すり
     hd = min(hd, -0.01 + sdBox(p - vec3(0, -RoomSize.y * 0.1 - 0.025, 0), vec3(RoomSize.x - 0.2, 0.05, 0.2)));
-    // // 床の出っ張った部分
-    // hd = min(hd, -0.01 + sdBox(p - vec3(0, -0.5 * (RoomSize.y - 0.2) - 0.05, 0), vec3(RoomSize.x, 0.05, 0.15)));
-    // // まるいライトの土台
-    // hd = fOpUnionRound(hd, sdVerticalCapsule(p - vec3(sign(h3.x - 0.5), -0.18, 0), 0.01, 0.075) - 0.01, 0.005);
+
     // 室外機
     const vec3 size = vec3(0.4, 0.28, 0.1);
     td = -0.01 + sdBox(p - vec3(1.1, -0.77, -0.02), size);
     tp = p - vec3(1.1, -0.77, -0.02) - vec3(-0.06, 0, -0.1);
-    td = fOpDifferenceRound(td, sdVerticalCapsule(tp.xzy, 0.1, 0.1), 0.005);
+    td = fOpDifferenceRound(td, sdBox(tp,vec3(0,0,0.1))-0.1, 0.005);
     tp.z -= 0.05;
-    td = min(td, -0.002 + sdVerticalCapsule(tp.xzy, 0.02, 0.02));
-    tp.xy = pmod(tp.xy, 32.0);
-    td = fOpUnionRound(td, sdVerticalCapsule(tp, 0.1, 0.002), 0.005);
+    td = min(td, length(tp)-0.015);
+    // ひだひだ
+    const float div = PI / 32.;
+    float a = atan(tp.y, tp.x);
+    a = mod(a, div * 2.0) - div;
+    tp.xy = orbit(a) * length(tp.xy);
+    td = fOpUnionRound(td, sdBox(tp,vec3(0.2,0,0))-0.002, 0.005);
     hd = min(hd, td);
     // 部屋限定
     hd += isroom;
@@ -534,7 +511,7 @@ void getRORD(out vec3 ro, out vec3 rd, out vec3 dir, vec2 suv)
     ro = vec3(1);
     dir = vec3(0, 0, 1);
     float lt = 0.0;
-    // Time = 68.0;
+    // Time = 46.28;
     if(tl(0.0, 15.0, lt))
     {
         ro = vec3(0.2, 0.2, mix(2.2, 1.5, lt));
