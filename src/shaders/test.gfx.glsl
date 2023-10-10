@@ -155,48 +155,12 @@ const float MAT_UNLIT = 1.0;
 // vec4 at->vec3 albedo, float type
 // vec2 mr->vec2 metallic, roughness
 
-/*
-ref : https://google.github.io/filament/Filament.html#materialsystem
-Specular Microfacet BRDF for Realtime Rendering
-*/
-
 float pow5(float x)
 {
     return (x * x) * (x * x) * x;
 }
-float D_GGX(float roughness, float NoH)
-{
-    float a = NoH * roughness;
-    float k = roughness / (1.0 - NoH * NoH + a * a);
-    return k * k * (1.0 / PI);
-}
-float V_Smith(float roughness, float NoV, float NoL)
-{
-    float a2 = roughness * roughness;
-    float G_V = NoL * sqrt(max(0.0, NoV * NoV * (1.0 - a2) + a2));
-    float G_L = NoV * sqrt(max(0.0, NoL * NoL * (1.0 - a2) + a2));
-    // return G_V;
-    return 0.5 / (G_V + G_L);
-}
-vec3 F_Schlick(vec3 f0, float c)
-{
-    float k = pow5(1.0 - c);
-    return f0 + (1.0 - f0) * k;
-}
-float F_Schlick_Burley(float f90, float c)
-{
-    const float f0 = 1.0;
-    float k = pow5(1.0 - c);
-    return f0 + (f90 - f0) * k;
-}
-float Fd_Burley(float roughness, float NoV, float NoL, float LoH)
-{
-    float f90 = 0.5 + 2.0 * roughness * LoH * LoH;
-    float ls = F_Schlick_Burley(NoL, f90);
-    float vs = F_Schlick_Burley(NoV, f90);
-    return ls * vs * (1.0 / PI);
-}
-vec3 Microfacet_BRDF(vec3 albedo,float metallic,float paramRoughness, vec3 L, vec3 V, vec3 N, bool isSecondary)
+
+vec3 Microfacet_BRDF(vec3 albedo, float metallic, float paramRoughness, vec3 L, vec3 V, vec3 N, bool isSecondary)
 {
     // i think 0.5
     const float reflectance = 0.5;
@@ -213,14 +177,27 @@ vec3 Microfacet_BRDF(vec3 albedo,float metallic,float paramRoughness, vec3 L, ve
     float LoH = saturate(dot(L, H));
 
     // Calc specular
-    float D_spec = D_GGX(roughness, NoH);
-    float V_spec = V_Smith(roughness, NoV, NoL);
-    // float V_spec = V_Smith_Fast(roughness, NoV, NoL);
-    vec3 F_spec = F_Schlick(f0, LoH);
+    // Calc D
+    float da = NoH * roughness;
+    float dk = roughness / (1.0 - NoH * NoH + da * da);
+    float D_spec = dk * dk / PI;
+    // Calc V
+    float va = roughness * roughness;
+    float G_V = NoL * sqrt(max(0.0, NoV * NoV * (1.0 - va) + va));
+    float G_L = NoV * sqrt(max(0.0, NoL * NoL * (1.0 - va) + va));
+    float V_spec = 0.5 / (G_V + G_L);
+    // Calc F
+    // vec3 F_spec = f0 + (1.0 - f0) * pow(1.0 - LoH, 5.0);
+    vec3 F_spec = f0 + (1.0 - f0) * pow5(1.0 - LoH);
     vec3 Fr = (isSecondary ? 1.0 : D_spec * V_spec) * F_spec;
+
     // Calc diffuse
+    float f90 = 0.5 + 2.0 * roughness * LoH * LoH;
+    float ls = 1.0 + (f90 - 1.0) * pow5(1.0 - NoL);
+    float vs = 1.0 + (f90 - 1.0) * pow5(1.0 - NoV);
+    float fdb = ls * vs / PI;
     vec3 diffColor = albedo * (1.0 - metallic);
-    vec3 Fd = diffColor * Fd_Burley(roughness, NoV, NoL, LoH);
+    vec3 Fd = diffColor * fdb;
 
     return (Fr + Fd) * NoL;
 }
@@ -509,7 +486,7 @@ vec3 shading(inout vec3 P, vec3 V, vec3 N)
         type = MAT_UNLIT;
         albedo = plcol;
     }
-    
+
     // avoid self-intersection
     P += N * DistMin * 2.0;
     // directional shadow
@@ -520,14 +497,14 @@ vec3 shading(inout vec3 P, vec3 V, vec3 N)
     // primary shading
     vec3 col = vec3(0);
     // directional light
-    col += visible * Microfacet_BRDF(albedo,metallic,roughness, DirectionalLight, V, N, false) * k12000;
+    col += visible * Microfacet_BRDF(albedo, metallic, roughness, DirectionalLight, V, N, false) * k12000;
     // point light
     vec3 L = (isfloorB ? vec3(-RoomSize * 0.5 + 0.1, 2.9) : vec3(sign(h3.x - 0.5), -0.06, 0)) - RP;
     float l = length(L);
     L /= l;
     float d = max(0.0, l);
     vec3 lcol = plcol * pow(1.0 / (1.0 + d), 2.0);
-    col += Microfacet_BRDF(albedo,metallic,roughness, L, V, N, false) * lcol;
+    col += Microfacet_BRDF(albedo, metallic, roughness, L, V, N, false) * lcol;
 
     // ao
     col *= sqrt(saturate(sdf(P + N * 0.05) / 0.05));
