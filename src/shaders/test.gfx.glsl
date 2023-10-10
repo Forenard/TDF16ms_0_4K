@@ -149,18 +149,15 @@ vec3 fbm32(vec2 p)
 // ................................
 // 
 
-// type: 0:pbr, 1:unlit(emissive)
-const int MAT_PBR = 0;
-const int MAT_UNLIT = 1;
-struct Material
+const float MAT_PBR = 0.0;
+const float MAT_UNLIT = 1.0;
+struct X
 {
-    int type;
+    float type;
     vec3 albedo;
     float metallic;
     float roughness;
 };
-#define Material() Material(0,vec3(1), 0.5, 0.5)
-
 /*
 ref : https://google.github.io/filament/Filament.html#materialsystem
 Specular Microfacet BRDF for Realtime Rendering
@@ -237,7 +234,7 @@ G: geometric shadowing function
 F: Fresnel function
 V: Visibility function
 */
-vec3 Microfacet_BRDF(Material mat, vec3 L, vec3 V, vec3 N, bool isSecondary)
+vec3 Microfacet_BRDF(X mat, vec3 L, vec3 V, vec3 N, bool isSecondary)
 {
     // i think 0.5
     const float reflectance = 0.5;
@@ -284,14 +281,10 @@ float fOpUnionRound(float a, float b, float r)
     vec2 u = max(vec2(r - a, r - b), vec2(0));
     return max(r, min(a, b)) - length(u);
 }
-float fOpIntersectionRound(float a, float b, float r)
-{
-    vec2 u = max(vec2(r + a, r + b), vec2(0));
-    return min(-r, max(a, b)) + length(u);
-}
 float fOpDifferenceRound(float a, float b, float r)
 {
-    return fOpIntersectionRound(a, -b, r);
+    vec2 u = max(vec2(r + a, r - b), vec2(0));
+    return min(-r, max(a, -b)) + length(u);
 }
 
 float sdBox(vec3 p, vec3 b)
@@ -299,25 +292,9 @@ float sdBox(vec3 p, vec3 b)
     vec3 d = abs(p) - b * 0.5;
     return min(max(d.x, max(d.y, d.z)), 0.0) + length(max(d, 0.0));
 }
-float sdBoxFrame(vec3 p, vec3 b, float e)
-{
-    p = abs(p) - b * 0.5;
-    vec3 q = abs(p + e) - e;
-    return min(min(length(max(vec3(p.x, q.y, q.z), 0.0)) + min(max(p.x, max(q.y, q.z)), 0.0), length(max(vec3(q.x, p.y, q.z), 0.0)) + min(max(q.x, max(p.y, q.z)), 0.0)), length(max(vec3(q.x, q.y, p.z), 0.0)) + min(max(q.x, max(q.y, p.z)), 0.0));
-}
-float sdPlane(vec3 p, vec3 n, float h)
-{
-    return dot(p, n) + h;
-}
-float sdCylinder(vec3 p, vec2 h)
-{
-    vec2 d = abs(vec2(length(p.xz), p.y)) - h;
-    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
-}
 float sdVerticalCapsule(vec3 p, float h, float r)
 {
-    p.y -= clamp(p.y, 0.0, h);
-    return length(p) - r;
+    return length(p - vec3(0, clamp(p.y, 0.0, h), 0)) - r;
 }
 float sdCappedCylinder(vec3 p, float h, float r)
 {
@@ -483,7 +460,7 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
         // traverse
         vec2 irp = (floor((rp.xy + sign(rd.xy) * RoomSize) / RoomSize) + 0.5) * RoomSize;
         vec2 bd = abs(irp - rp.xy) - 0.5 * RoomSize;
-        bd = max(bd, 0.0) / abs(rd.xy) + DistMin + float(rp.z < -1.0) * LenMax;
+        bd = max(bd, 0.0) / abs(rd.xy) + DistMin + float(rp.z < -2.0) * LenMax;
         dist = min(dist, min(bd.x, bd.y));
 
         len += dist;
@@ -509,9 +486,9 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
 // .................................................................
 // 
 
-Material getMaterial(vec3 P, inout vec3 N)
+X getX(vec3 P, inout vec3 N)
 {
-    Material mat = Material();
+    X mat = X(0.0, vec3(1), 0.5, 0.5);
 
     // triplanar
     vec3 tN = sign(N) * abs(N);
@@ -577,7 +554,7 @@ vec3 sky(vec3 rd)
     return col;
 }
 
-vec3 sdfLighting(Material mat, vec3 P, vec3 V, vec3 N)
+vec3 sdfLighting(X mat, vec3 P, vec3 V, vec3 N)
 {
     vec3 col = vec3(0);
 
@@ -600,7 +577,7 @@ vec3 sdfLighting(Material mat, vec3 P, vec3 V, vec3 N)
 
 vec3 shading(inout vec3 P, vec3 V, vec3 N)
 {
-    Material mat = getMaterial(P, N);
+    X mat = getX(P, N);
     // avoid self-intersection
     P += N * DistMin * 2.0;
     // directional shadow

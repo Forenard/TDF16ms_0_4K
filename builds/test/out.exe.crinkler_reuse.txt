@@ -3,7 +3,7 @@
 00:1 80:2 40:1 88:3 20:1 90:3
 
 # Data models
-00:1 80:2 40:0 C0:3 4C:1 A0:1 E0:3 B0:2 70:0 D0:2 AC:3 B2:3 DC:4 58:1 D2:3 64:1 F8:3 62:1 8A:1 CA:4 2A:0
+00:1 80:2 40:0 C0:3 24:0 A0:1 E0:3 19:0 B0:2 D0:2 63:2 CC:4 9A:3 D6:4 78:2 56:2 CB:5 A5:3 93:3
 
 # Code sections
 Crinkler import:.text:_Import
@@ -24,4 +24,4 @@ ImportListHunk:_ImportList
 MAIN.OBJ:.bss:?s_glExtFunctions@@3PAPAXA
 
 # Hash table size
-314567882
+314564594
