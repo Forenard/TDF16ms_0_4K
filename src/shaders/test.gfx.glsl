@@ -88,15 +88,6 @@ vec2 pmod(vec2 suv, float div)
     return orbit(a) * length(suv);
 }
 
-// hacky version
-vec2 uvtrip(vec3 P, vec3 N)
-{
-    const float power = 1.0;
-    N = sign(N) * pow(abs(N), vec3(power));
-    N = N / dot(vec3(1), N);
-    return N.x * P.zy + N.y * P.xz + N.z * P.xy;
-}
-
 bool tl(float intime, float outtime, out float lt)
 {
     lt = (Time - intime) / (outtime - intime);
@@ -522,7 +513,10 @@ Material getMaterial(vec3 P, inout vec3 N)
 {
     Material mat = Material();
 
-    vec2 uv = uvtrip(P, N);
+    // triplanar
+    vec3 tN = sign(N) * abs(N);
+    tN = tN / dot(vec3(1), tN);
+    vec2 uv = tN.x * P.zy + tN.y * P.xz + tN.z * P.xy;
     vec2 ip = opRoomRep(P);
     vec3 h3 = pcg33(vec3(0.1, ip));
 
