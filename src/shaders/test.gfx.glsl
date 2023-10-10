@@ -151,13 +151,10 @@ vec3 fbm32(vec2 p)
 
 const float MAT_PBR = 0.0;
 const float MAT_UNLIT = 1.0;
-struct X
-{
-    float type;
-    vec3 albedo;
-    float metallic;
-    float roughness;
-};
+
+// vec4 at->vec3 albedo, float type
+// vec2 mr->vec2 metallic, roughness
+
 /*
 ref : https://google.github.io/filament/Filament.html#materialsystem
 Specular Microfacet BRDF for Realtime Rendering
@@ -167,21 +164,12 @@ float pow5(float x)
 {
     return (x * x) * (x * x) * x;
 }
-
-/*
-Normal distribution function
-(Trowbridge-Reitz distribution)
-*/
 float D_GGX(float roughness, float NoH)
 {
     float a = NoH * roughness;
     float k = roughness / (1.0 - NoH * NoH + a * a);
     return k * k * (1.0 / PI);
 }
-/*
-Visibility function
-(height-correlated Smith function)
-*/
 float V_Smith(float roughness, float NoV, float NoL)
 {
     float a2 = roughness * roughness;
@@ -190,19 +178,6 @@ float V_Smith(float roughness, float NoV, float NoL)
     // return G_V;
     return 0.5 / (G_V + G_L);
 }
-// float V_Smith_Fast(float roughness, float NoV, float NoL)
-// {
-//     float a = roughness;
-//     float G_V = NoV / (NoV * (1.0 - a) + a);
-//     float G_L = NoL / (NoL * (1.0 - a) + a);
-//     return 0.5 / (G_V + G_L);
-// }
-/*
-Fresnel function
-(Schlick approximation)
-F : Fresnel reflectance
-F90 = 1.0
-*/
 vec3 F_Schlick(vec3 f0, float c)
 {
     float k = pow5(1.0 - c);
@@ -214,9 +189,6 @@ float F_Schlick_Burley(float f90, float c)
     float k = pow5(1.0 - c);
     return f0 + (f90 - f0) * k;
 }
-/*
-Disney diffuse BRDF
-*/
 float Fd_Burley(float roughness, float NoV, float NoL, float LoH)
 {
     float f90 = 0.5 + 2.0 * roughness * LoH * LoH;
@@ -224,23 +196,10 @@ float Fd_Burley(float roughness, float NoV, float NoL, float LoH)
     float vs = F_Schlick_Burley(NoV, f90);
     return ls * vs * (1.0 / PI);
 }
-/*
-Cook-Torrance approximation
-Specular-BRDF=D*G*F/(4*dot(L,N)*dot(V,N))
-=D*V*F
-
-D: Normal distribution function
-G: geometric shadowing function
-F: Fresnel function
-V: Visibility function
-*/
-vec3 Microfacet_BRDF(X mat, vec3 L, vec3 V, vec3 N, bool isSecondary)
+vec3 Microfacet_BRDF(vec3 albedo,float metallic,float paramRoughness, vec3 L, vec3 V, vec3 N, bool isSecondary)
 {
     // i think 0.5
     const float reflectance = 0.5;
-    vec3 albedo = mat.albedo;
-    float metallic = mat.metallic;
-    float paramRoughness = mat.roughness;
 
     float roughness = paramRoughness * paramRoughness;
     // clamp roughness
@@ -478,54 +437,6 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
 }
 
 // 
-// .%%...%%...%%%%...%%%%%%..%%%%%%..%%%%%...%%%%%%...%%%%...%%.....
-// .%%%.%%%..%%..%%....%%....%%......%%..%%....%%....%%..%%..%%.....
-// .%%.%.%%..%%%%%%....%%....%%%%....%%%%%.....%%....%%%%%%..%%.....
-// .%%...%%..%%..%%....%%....%%......%%..%%....%%....%%..%%..%%.....
-// .%%...%%..%%..%%....%%....%%%%%%..%%..%%..%%%%%%..%%..%%..%%%%%%.
-// .................................................................
-// 
-
-X getX(vec3 P, inout vec3 N)
-{
-    X mat = X(0.0, vec3(1), 0.5, 0.5);
-
-    // triplanar
-    vec3 tN = sign(N) * abs(N);
-    tN = tN / dot(vec3(1), tN);
-    vec2 uv = tN.x * P.zy + tN.y * P.xz + tN.z * P.xy;
-    vec2 ip = opRoomRep(P);
-    vec3 h3 = pcg33(vec3(0.1, ip));
-
-    if(MatID == 0)
-    {
-        // Mat:Concrete
-        vec3 fbm = fbm32(uv * 3.0 * vec2(3, 1));// gravity ydown
-        vec3 fbm2 = fbm32(uv * 96.0 * vec2(2, 1));
-        mat.albedo = vec3(saturate(1.3 * mix(0.6, 1.0, fbm.y) * mix(0.8, 1.0, pow(fbm2.x, 3.0))));
-        mat.roughness = mix(0.5, 1.0, pow(fbm.y, 3.0));
-        mat.metallic = 0.01;
-        N = normalize(N + (fbm * 2.0 - 1.0) * 0.05);
-    }
-    else if(MatID == 1)
-    {
-        // Mat:カーテン
-        float h = h3.x;
-        mat.albedo = (h < 0.7 ? vec3(0.8, 0.7, 0.6) : (h < 0.8 ? vec3(0.8, 0.2, 0.2) : (h < 0.9 ? vec3(0.8, 0.6, 0.3) : vec3(0.5, 0.7, 0.8))));
-        mat.roughness = 0.99;
-        mat.metallic = 0.01;
-    }
-    else
-    {
-        // Mat:ライト
-        mat.type = MAT_UNLIT;
-        mat.albedo = (step(h3.y, 0.9) * 0.8 + 0.2) * mix(k2000, k12000, h3.x);
-    }
-
-    return mat;
-}
-
-// 
 // ..%%%%...%%..%%...%%%%...%%%%%...%%%%%%..%%..%%...%%%%..
 // .%%......%%..%%..%%..%%..%%..%%....%%....%%%.%%..%%.....
 // ..%%%%...%%%%%%..%%%%%%..%%..%%....%%....%%.%%%..%%.%%%.
@@ -554,43 +465,73 @@ vec3 sky(vec3 rd)
     return col;
 }
 
-vec3 sdfLighting(X mat, vec3 P, vec3 V, vec3 N)
-{
-    vec3 col = vec3(0);
-
-    vec2 ip = opRoomRep(P);
-    vec3 h3 = pcg33(vec3(0.1, ip));
-    vec3 bcol = (step(h3.y, 0.9) * 0.8 + 0.2) * mix(k2000, k12000, h3.x);
-
-    bool isfloorB = fract(0.5 * ip.x / RoomSize.x) < 0.5;
-
-    // 階段のライト
-    vec3 L = (isfloorB ? vec3(-RoomSize * 0.5 + 0.1, 2.9) : vec3(sign(h3.x - 0.5), -0.06, 0)) - P;
-    float l = length(L);
-    L /= l;
-    float d = max(0.0, l);
-    vec3 lcol = bcol * pow(1.0 / (1.0 + d), 2.0);
-    col += Microfacet_BRDF(mat, L, V, N, false) * lcol;
-
-    return col;
-}
-
 vec3 shading(inout vec3 P, vec3 V, vec3 N)
 {
-    X mat = getX(P, N);
+    // triplanar
+    vec3 tN = sign(N) * abs(N);
+    tN = tN / dot(vec3(1), tN);
+    vec2 uv = tN.x * P.zy + tN.y * P.xz + tN.z * P.xy;
+
+    // identify
+    vec3 RP = P;
+    vec2 ip = opRoomRep(RP);
+    bool isfloorB = fract(0.5 * ip.x / RoomSize.x) < 0.5;
+    vec3 h3 = pcg33(vec3(0.1, ip));
+
+    // get mat
+    float type = MAT_PBR;
+    vec3 albedo = vec3(1);
+    float roughness = 0.5;
+    float metallic = 0.5;
+    // ポイントライトの色
+    vec3 plcol = (step(h3.y, 0.9) * 0.8 + 0.2) * mix(k2000, k12000, h3.x);
+    if(MatID == 0)
+    {
+        // Mat:Concrete
+        vec3 fbm = fbm32(uv * 3.0 * vec2(3, 1));// gravity ydown
+        vec3 fbm2 = fbm32(uv * 96.0 * vec2(2, 1));
+        albedo = vec3(saturate(1.3 * mix(0.6, 1.0, fbm.y) * mix(0.8, 1.0, pow(fbm2.x, 3.0))));
+        roughness = mix(0.5, 1.0, pow(fbm.y, 3.0));
+        metallic = 0.01;
+        N = normalize(N + (fbm * 2.0 - 1.0) * 0.05);
+    }
+    else if(MatID == 1)
+    {
+        // Mat:カーテン
+        float h = h3.x;
+        albedo = (h < 0.7 ? vec3(0.8, 0.7, 0.6) : (h < 0.8 ? vec3(0.8, 0.2, 0.2) : (h < 0.9 ? vec3(0.8, 0.6, 0.3) : vec3(0.5, 0.7, 0.8))));
+        roughness = 0.99;
+        metallic = 0.01;
+    }
+    else
+    {
+        // Mat:ライト
+        type = MAT_UNLIT;
+        albedo = plcol;
+    }
+    
     // avoid self-intersection
     P += N * DistMin * 2.0;
     // directional shadow
     vec3 _rp;
     vec2 sh = march(DirectionalLight, P, _rp);
     float visible = sh.y;
+
     // primary shading
     vec3 col = vec3(0);
-    col += visible * Microfacet_BRDF(mat, DirectionalLight, V, N, false) * k12000;
-    col += sdfLighting(mat, P, V, N);
+    // directional light
+    col += visible * Microfacet_BRDF(albedo,metallic,roughness, DirectionalLight, V, N, false) * k12000;
+    // point light
+    vec3 L = (isfloorB ? vec3(-RoomSize * 0.5 + 0.1, 2.9) : vec3(sign(h3.x - 0.5), -0.06, 0)) - RP;
+    float l = length(L);
+    L /= l;
+    float d = max(0.0, l);
+    vec3 lcol = plcol * pow(1.0 / (1.0 + d), 2.0);
+    col += Microfacet_BRDF(albedo,metallic,roughness, L, V, N, false) * lcol;
+
     // ao
     col *= sqrt(saturate(sdf(P + N * 0.05) / 0.05));
-    return mix(col, mat.albedo, mat.type);
+    return mix(col, albedo, type);
 }
 
 // 
