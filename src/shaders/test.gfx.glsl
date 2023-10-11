@@ -460,52 +460,62 @@ void main()
     // シーケンス
     float lt = 0.0;
     // Time = 46.28;
-    if(tl(0.0, 15.0, lt))
-    {
-        ro = vec3(0.2, 0.2, mix(2.2, 1.5, lt));
-        dir = normalize(mix(vec3(0.5, 1.5, 1), vec3(0.1, 0.1, 1), lt));
-    }
-    else if(tl(15.0, 30.0, lt))
-    {
-        fov = mix(60.0, 90.0, lt);
-        fisheye = mix(0.0, 0.4, lt);
-        ro = mix(vec3(0.4, 0.2, 2.0), vec3(0.35, 0.6, 0.4), lt);
-        dir = normalize(mix(vec3(-0.5, -1, -1), vec3(0, 0, -1), lt));
-    }
-    else if(tl(30.0, 45.0, lt))
-    {
-        ro = vec3(mix(0.8 - RoomSize.x, -0.1, lt), -1.0, 0);
-        dir = normalize(vec3(-1, -0.1, 0.3));
-    }
-    else if(tl(45.0, 60.0, lt))
-    {
-        ro = vec3(mix(-0.5, 0.2 - RoomSize.x, lt), -1.8, -0.3);
-        dir = normalize(vec3(1, 0.2, 0.8));
-    }
-    else if(tl(60.0, 75.0, lt))
-    {
-        float z = floor(lt * 3.0) * 8.0 + fract(lt * 3.0);
-        ro = vec3(0, 0, -1.0 - z);
-        dir = vec3(0, 0, 1);
-    }
-    else if(tl(77.0, 90.0, lt))
-    {
-        float t = 20.0 * lt;
-        vec3 ta = vec3(-RoomSize.x * 0.5 + 0.3, t * RoomSize.y, 0.0);
-        ro = ta + vec3(mix(3, -3, lt), -5, -3);
-        dir = normalize(ta - ro);
-    }
-    else if(tl(90.0, 105.0, lt))
-    {
-        ro = vec3(-Time * 4.0, 0, 0);
-        dir = normalize(vec3(-1, mix(0.2, -0.2, lt), 0));
-    }
-    else if(tl(105.0, 120.0, lt))
-    {
-        ro = vec3(0, Time * 2.0, 0);
-        dir = normalize(vec3(0, 1, mix(0.0, 1.0, lt)));
-        dir.xz *= rot(PI * lt);
-    }
+
+    const vec3 ro0[] = vec3[](vec3(0.2, 0.2, 2.2), vec3(0.4, 0.2, 2.0), vec3(0.8 - RoomSize.x, -1.0, 0), vec3(-0.5, -1.8, -0.3), vec3(0, 0, -1.0), vec3(0, 0, -3), vec3(0), vec3(0));
+    const vec3 ro1[] = vec3[](vec3(0.1, 0.1, 1.5), vec3(0.35, 0.6, 0.4), vec3(-0.1, -1.0, 0), vec3(0.2 - RoomSize.x, -1.8, -0.3), vec3(0, 0, -1.0), vec3(0, 0, -3), vec3(0), vec3(0));
+
+    const vec3 dir0[] = vec3[](vec3(0.5, 1.5, 1), vec3(-0.5, -1, -1), vec3(-1, -0.1, 0.3), vec3(1, 0.2, 0.8), vec3(0, 0, 1), vec3(0, 0, 1), vec3(-1, 0.2, 0), vec3(0, 1, 0));
+    const vec3 dir1[] = vec3[](vec3(0.1, 0.1, 1), vec3(0, 0, -1), vec3(-1, -0.1, 0.3), vec3(1, 0.2, 0.8), vec3(0, 0, 1), vec3(0, 0, 1), vec3(-1, -0.2, 0), vec3(0, 1, 1));
+
+    float ft = Time / 15.0;
+    int id = int(ft)%8;
+    lt = fract(ft);
+    ro = mix(ro0[id], ro1[id], lt);
+    dir = normalize(mix(dir0[id], dir1[id], lt));
+    // if(tl(0.0, 15.0, lt))
+    // {
+    //     ro = vec3(0.2, 0.2, mix(2.2, 1.5, lt));
+    //     dir = normalize(mix(vec3(0.5, 1.5, 1), vec3(0.1, 0.1, 1), lt));
+    // }
+    // else if(tl(15.0, 30.0, lt))
+    // {
+    //     ro = mix(vec3(0.4, 0.2, 2.0), vec3(0.35, 0.6, 0.4), lt);
+    //     dir = normalize(mix(vec3(-0.5, -1, -1), vec3(0, 0, -1), lt));
+    // }
+    // else if(tl(30.0, 45.0, lt))
+    // {
+    //     ro = vec3(mix(0.8 - RoomSize.x, -0.1, lt), -1.0, 0);
+    //     dir = normalize(vec3(-1, -0.1, 0.3));
+    // }
+    // else if(tl(45.0, 60.0, lt))
+    // {
+    //     ro = vec3(mix(-0.5, 0.2 - RoomSize.x, lt), -1.8, -0.3);
+    //     dir = normalize(vec3(1, 0.2, 0.8));
+    // }
+    // else if(tl(60.0, 75.0, lt))
+    // {
+    //     float z = floor(lt * 3.0) * 8.0 + fract(lt * 3.0);
+    //     ro = vec3(0, 0, -1.0 - z);
+    //     dir = vec3(0, 0, 1);
+    // }
+    // else if(tl(77.0, 90.0, lt))
+    // {
+    //     float t = 20.0 * lt;
+    //     vec3 ta = vec3(-RoomSize.x * 0.5 + 0.3, t * RoomSize.y, 0.0);
+    //     ro = ta + vec3(mix(3, -3, lt), -5, -3);
+    //     dir = normalize(ta - ro);
+    // }
+    // else if(tl(90.0, 105.0, lt))
+    // {
+    //     ro = vec3(-Time * 4.0, 0, 0);
+    //     dir = normalize(vec3(-1, mix(0.2, -0.2, lt), 0));
+    // }
+    // else if(tl(105.0, 120.0, lt))
+    // {
+    //     ro = vec3(0, Time * 2.0, 0);
+    //     dir = normalize(vec3(0, 1, mix(0.0, 1.0, lt)));
+    //     dir.xz *= rot(PI * lt);
+    // }
     // ADD 手振れ
     const vec3 tebure = (fbm32(vec2(-4.2, Time * 0.1)) * 2.0 - 1.0) * 0.05;
     ro += tebure;
