@@ -174,7 +174,7 @@ vec3 Microfacet_BRDF(vec3 albedo, float metallic, float paramRoughness, vec3 L, 
     // Calc F
     // vec3 F_spec = f0 + (1.0 - f0) * pow(1.0 - LoH, 5.0);
     vec3 F_spec = f0 + (1.0 - f0) * pow5(1.0 - LoH);
-    vec3 Fr =  D_spec * V_spec * F_spec;
+    vec3 Fr = D_spec * V_spec * F_spec;
 
     // Calc diffuse
     float f90 = 0.5 + 2.0 * roughness * LoH * LoH;
@@ -256,7 +256,7 @@ float sdf(vec3 p)
     tp.y = abs(fract(tp.y) - 0.5) - 0.06;
     // sdBox(p-vec3(0,h*0.5,0),vec3(0,h,0))-r;
     // fd = min(fd, sdVerticalCapsule((tp - vec3(-0.11, 0, 0)).yxz, 0.04, 0.01));
-    fd = min(fd, sdBox(tp+vec3(0.1, 0, 0),vec3(0.05,0,0))-0.01);
+    fd = min(fd, sdBox(tp + vec3(0.1, 0, 0), vec3(0.05, 0, 0)) - 0.01);
     vec2 dd = abs(vec2(length(tp.xz), tp.y)) - vec2(0.08, 0.02);
     fd = min(fd, min(max(dd.x, dd.y), 0.0) + length(max(dd, 0.0)));
     // 階段限定
@@ -289,15 +289,15 @@ float sdf(vec3 p)
     const vec3 size = vec3(0.4, 0.28, 0.1);
     td = -0.01 + sdBox(p - vec3(1.1, -0.77, -0.02), size);
     tp = p - vec3(1.1, -0.77, -0.02) - vec3(-0.06, 0, -0.1);
-    td = fOpDifferenceRound(td, sdBox(tp,vec3(0,0,0.1))-0.1, 0.005);
+    td = fOpDifferenceRound(td, sdBox(tp, vec3(0, 0, 0.1)) - 0.1, 0.005);
     tp.z -= 0.05;
-    td = min(td, length(tp)-0.015);
+    td = min(td, length(tp) - 0.015);
     // ひだひだ
     const float div = PI / 32.;
     float a = atan(tp.y, tp.x);
     a = mod(a, div * 2.0) - div;
     tp.xy = orbit(a) * length(tp.xy);
-    td = fOpUnionRound(td, sdBox(tp,vec3(0.2,0,0))-0.002, 0.005);
+    td = fOpUnionRound(td, sdBox(tp, vec3(0.2, 0, 0)) - 0.002, 0.005);
     hd = min(hd, td);
     // 部屋限定
     hd += isroom;
@@ -544,12 +544,12 @@ void main()
     // triplanar
     vec3 tN = sign(N) * abs(N);
     tN = tN / dot(vec3(1), tN);
-    vec2 tuv = tN.x * P.zy + tN.y * P.xz + tN.z * P.xy;
+    vec2 tuv = (tN.x * P.zy + tN.y * P.xz + tN.z * P.xy) * vec2(3, 1);
     // identify
     vec3 RP = P;
     vec2 ip = opRoomRep(RP);
     bool isfloorB = fract(0.5 * ip.x / RoomSize.x) < 0.5;
-    vec3 hash =  pcg33(vec3(ip, 0));
+    vec3 hash = pcg33(vec3(ip, 0));
     // get mat
     float type = MAT_PBR;
     vec3 albedo = vec3(1);
@@ -560,8 +560,8 @@ void main()
     if(MatID == 0)
     {
         // Mat:Concrete
-        vec3 fbm = fbm32(tuv * 3.0 * vec2(3, 1));// gravity ydown
-        vec3 fbm2 = fbm32(tuv * 96.0 * vec2(2, 1));
+        vec3 fbm = fbm32(tuv * 3.0);// gravity ydown
+        vec3 fbm2 = fbm32(tuv * 96.0);
         albedo = vec3(saturate(1.3 * mix(0.6, 1.0, fbm.y) * mix(0.8, 1.0, pow(fbm2.x, 3.0))));
         roughness = mix(0.5, 1.0, pow(fbm.y, 3.0));
         metallic = 0.01;
@@ -571,7 +571,9 @@ void main()
     {
         // Mat:カーテン
         float h = hash.x;
-        albedo = (h < 0.7 ? vec3(0.8, 0.7, 0.6) : (h < 0.8 ? vec3(0.8, 0.2, 0.2) : (h < 0.9 ? vec3(0.8, 0.6, 0.3) : vec3(0.5, 0.7, 0.8))));
+        const vec3 cols[] = vec3[](vec3(0.8, 0.7, 0.6), vec3(0.8, 0.2, 0.2), vec3(0.5, 0.7, 0.8));
+        // albedo = (h < 0.7 ? vec3(0.8, 0.7, 0.6) : (h < 0.8 ? vec3(0.8, 0.2, 0.2) : (h < 0.9 ? vec3(0.8, 0.6, 0.3) : vec3(0.5, 0.7, 0.8))));
+        albedo = cols[int(h * 3.0)];
         roughness = 0.99;
         metallic = 0.01;
     }
@@ -594,13 +596,11 @@ void main()
     // point light
     vec3 L = (isfloorB ? vec3(-RoomSize * 0.5 + 0.1, 2.9) : vec3(sign(hash.x - 0.5), -0.06, 0)) - RP;
     float l = length(L);
-    L /= l;
-    float pd = max(0.0, l);
-    vec3 lcol = plcol * pow(1.0 / (1.0 + pd), 2.0);
-    shaded += Microfacet_BRDF(albedo, metallic, roughness, L, -rd, N) * lcol;
+    vec3 lcol = plcol * pow(1.0 / (1.0 + max(0.0, l)), 2.0);
+    shaded += Microfacet_BRDF(albedo, metallic, roughness, L / l, -rd, N) * lcol;
     // ao
     shaded *= sqrt(saturate(sdf(P + N * 0.05) / 0.05));
-    shaded =  mix(shaded, albedo, type);
+    shaded = mix(shaded, albedo, type);
     // sky
     vec4 traced = mix(vec4(sky(rd), LenMax), vec4(shaded, depth), hit.x);
 
@@ -629,40 +629,7 @@ void main()
     col.r = smoothstep(-0.05, 1.05, col.r);
 
     // トランジション
-    lt = 0.0;
-    if(tl(0.0, 10.0, lt))
-    {
-        // 開幕
-        col *= lt * lt;
-    }
-    else if(tl(14.0, 16.0, lt))
-    {
-        col *= 2.0 * abs(lt - 0.5);
-    }
-    else if(tl(29.0, 31.0, lt))
-    {
-        col *= 2.0 * abs(lt - 0.5);
-    }
-    else if(tl(44.0, 46.0, lt))
-    {
-        col *= 2.0 * abs(lt - 0.5);
-    }
-    else if(tl(59.0, 61.0, lt))
-    {
-        col *= 2.0 * abs(lt - 0.5);
-    }
-    else if(tl(74.0, 77.0, lt))
-    {
-        col *= saturate(75.0 - Time);
-    }
-    else if(tl(119.0, 120.0, lt))
-    {
-        col *= 1.0 - lt;
-    }
-    else if(Time >= 120.0)
-    {
-        col *= 0.0;
-    }
+    col *= saturate((0.5 - abs(lt - 0.5)) * 10.0);
     traced.rgb = col;
 
     // TAA&MotionBlur
