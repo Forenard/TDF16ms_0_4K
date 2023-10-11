@@ -50,7 +50,7 @@ int MatID;
 // ........................................................
 // 
 const float PI = acos(-1.0);
-const float TAU = 2.0 * PI;
+const float TAU = PI * 2.0;
 const float GOLD = PI * (3.0 - sqrt(5.0));// 2.39996...
 const vec3 k2000 = vec3(255, 137, 14) / 255.0;
 const vec3 k12000 = vec3(191, 211, 255) / 255.0;
@@ -62,15 +62,16 @@ const vec3 k12000 = vec3(191, 211, 255) / 255.0;
 #define opRepLim(p,c,l) ((p)-(c)*clamp(round((p)/(c)),-(l),(l)))
 #define opRepLimID(p,c,l) (clamp(round((p)/(c)),-(l),(l))+(l))
 
-vec2 orbit(float a)
+
+vec2 orbit(float t)
 {
-    return vec2(cos(a), sin(a));
+  return vec2(cos(t), sin(t));
 }
 
 mat2 rot(float x)
 {
-    vec2 v = orbit(x);
-    return mat2(v.x, v.y, -v.y, v.x);
+  vec2 v = orbit(x);
+  return mat2(v.x, v.y, -v.y, v.x);
 }
 
 bool tl(float intime, float outtime, out float lt)
@@ -197,15 +198,17 @@ vec3 Microfacet_BRDF(vec3 albedo, float metallic, float paramRoughness, vec3 L, 
 // 
 
 // https://mercury.sexy/hg_sdf/
-float fOpUnionRound(float a, float b, float r)
+float i_fOpUnionRound(float a, float b, float r)
 {
-    vec2 u = max(vec2(r - a, r - b), vec2(0));
-    return max(r, min(a, b)) - length(u);
+    return min(a, b);
+    // vec2 u = max(vec2(r - a, r - b), vec2(0));
+    // return max(r, min(a, b)) - length(u);
 }
-float fOpDifferenceRound(float a, float b, float r)
+float i_fOpDifferenceRound(float a, float b, float r)
 {
-    vec2 u = max(vec2(r + a, r - b), vec2(0));
-    return min(-r, max(a, -b)) + length(u);
+    return max(a, -b);
+    // vec2 u = max(vec2(r + a, r - b), vec2(0));
+    // return min(-r, max(a, -b)) + length(u);
 }
 
 float sdBox(vec3 p, vec3 b)
@@ -265,22 +268,22 @@ float sdf(vec3 p)
     // ベースの壁
     float hd = -p.z;
     // 部屋のあな
-    hd = fOpDifferenceRound(hd, sdBox(p, vec3(RoomSize - 0.2, 4.0)), 0.01);
+    hd = i_fOpDifferenceRound(hd, sdBox(p, vec3(RoomSize - 0.2, 4.0)), 0.01);
     // 窓枠
     tp = p - vec3(0, 0, 0.75);
     tp.x = abs(tp.x);
     const vec2 rsize = RoomSize - 0.2;
-    hd = fOpUnionRound(hd, sdBox(tp, vec3(rsize, 0.05)), 0.01);
+    hd = i_fOpUnionRound(hd, sdBox(tp, vec3(rsize, 0.05)), 0.01);
     const vec3 msize = vec3(rsize.x * 0.25 - 0.125, rsize.y * 0.75, 0.1);
-    hd = fOpDifferenceRound(hd, sdBox(tp - vec3(msize.x * 0.5 + 0.05, -msize.y * 0.1, 0), msize), 0.01);
+    hd = i_fOpDifferenceRound(hd, sdBox(tp - vec3(msize.x * 0.5 + 0.05, -msize.y * 0.1, 0), msize), 0.01);
     const vec3 msize2 = vec3(msize.x, msize.y * 0.5, msize.z);
-    hd = fOpDifferenceRound(hd, sdBox(tp - vec3(msize2.x * 1.5 + 0.15, msize2.y * 0.3, 0), msize2), 0.01);
+    hd = i_fOpDifferenceRound(hd, sdBox(tp - vec3(msize2.x * 1.5 + 0.15, msize2.y * 0.3, 0), msize2), 0.01);
     // 腰壁
     hd = min(hd, -0.01 + sdBox(p - vec3(0, -RoomSize.y * 0.25, 0.1), vec3(RoomSize.x - 0.2, RoomSize.y * 0.3, 0.025)));
     // 腰壁の穴
     tp = p - vec3(0, -RoomSize.y * 0.25, 0.1);
     tp.x = opRepLim(tp.x, 0.2, 6);
-    hd = fOpDifferenceRound(hd, sdBox(tp, vec3(0.06, RoomSize.y * 0.25, 0.05)), 0.01);
+    hd = i_fOpDifferenceRound(hd, sdBox(tp, vec3(0.06, RoomSize.y * 0.25, 0.05)), 0.01);
     // 手すり
     hd = min(hd, -0.01 + sdBox(p - vec3(0, -RoomSize.y * 0.1 - 0.025, 0), vec3(RoomSize.x - 0.2, 0.05, 0.2)));
 
@@ -288,7 +291,7 @@ float sdf(vec3 p)
     const vec3 size = vec3(0.4, 0.28, 0.1);
     td = -0.01 + sdBox(p - vec3(1.1, -0.77, -0.02), size);
     tp = p - vec3(1.1, -0.77, -0.02) - vec3(-0.06, 0, -0.1);
-    td = fOpDifferenceRound(td, sdBox(tp,vec3(0,0,0.1))-0.1, 0.005);
+    td = i_fOpDifferenceRound(td, sdBox(tp,vec3(0,0,0.1))-0.1, 0.005);
     tp.z -= 0.05;
     td = min(td, length(tp)-0.015);
     // ひだひだ
@@ -296,7 +299,7 @@ float sdf(vec3 p)
     float a = atan(tp.y, tp.x);
     a = mod(a, div * 2.0) - div;
     tp.xy = orbit(a) * length(tp.xy);
-    td = fOpUnionRound(td, sdBox(tp,vec3(0.2,0,0))-0.002, 0.005);
+    td = i_fOpUnionRound(td, sdBox(tp,vec3(0.2,0,0))-0.002, 0.005);
     hd = min(hd, td);
     // 部屋限定
     hd += isroom;
