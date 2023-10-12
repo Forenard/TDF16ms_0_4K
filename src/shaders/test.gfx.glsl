@@ -242,17 +242,15 @@ float sdf(vec3 p)
     float mizo = dot(vec3(2), smoothstep(w, w * 0.5, tp)) / 3 * 0.001;
     // かいだん
     // #define linearstep(a, b, x) min(max((p.x+1) / ((b) - (a)), 0.0), 1.0)
-    float fy = p.y - saturate((p.x+1)*0.5)*2-0.5;
-    float fd = min(min(max((min(abs(fy), abs(fy + 2)) - 0.5) * 0.4, -p.z), -p.z + 3), max(abs(p.x) -1, -p.z + 0.5));
+    float fy = p.y - saturate((p.x + 1) * 0.5) * 2 - 0.5;
+    float fd = min(min(max((min(abs(fy), abs(fy + 2)) - 0.5) * 0.4, -p.z), -p.z + 3), max(abs(p.x) - 1, -p.z + 0.5));
     fd += mizo;
     // パイプ
-    tp = p - vec3(-RoomSize.x * 0.45, 0, -0.07);
+    tp = p - vec3(-1.35, 0, -0.07);
     tp.x = abs(tp.x - 0.1) - 0.1;
     fd = min(fd, length(tp.xz) - 0.07);
     // パイプの金具
-    tp.y = abs(fract(tp.y) - 0.5) - 0.06;
-    // sdBox(p-vec3(0,h*0.5,0),vec3(0,h,0))-r;
-    // fd = min(fd, sdVerticalCapsule((tp - vec3(-0.11, 0, 0)).yxz, 0.04, 0.01));
+    tp.y = abs(fract(tp.y) - 0.5) - 0.07;
     fd = min(fd, sdBox(tp + vec3(0.1, 0, 0), vec3(0.05, 0, 0)) - 0.01);
     vec2 dd = abs(vec2(length(tp.xz), tp.y)) - vec2(0.08, 0.02);
     fd = min(fd, min(max(dd.x, dd.y), 0.0) + length(max(dd, 0.0)));
@@ -260,25 +258,25 @@ float sdf(vec3 p)
     // 部屋
     // ベースの壁
     float hd = -p.z;
+    // const vec2 i_rsize = RoomSize - 0.2;
+    // const vec2 i_rsize = vec2(2.8, 1.8);
     // 部屋のあな
-    hd = i_fOpDifferenceRound(hd, sdBox(p, vec3(RoomSize - 0.2, 4.0)), 0.01);
+    hd = i_fOpDifferenceRound(hd, sdBox(p, vec3(2.8, 1.8, 4)), 0.01);
     // 窓枠
     tp = p - vec3(0, 0, 0.75);
-    tp.x = abs(tp.x);
-    const vec2 i_rsize = RoomSize - 0.2;
-    hd = i_fOpUnionRound(hd, sdBox(tp, vec3(i_rsize, 0.05)), 0.01);
-    const vec3 msize = vec3(i_rsize.x * 0.25 - 0.125, i_rsize.y * 0.75, 0.1);
-    hd = i_fOpDifferenceRound(hd, sdBox(tp - vec3(msize.x * 0.5 + 0.05, -msize.y * 0.1, 0), msize), 0.01);
-    const vec3 msize2 = vec3(msize.x, msize.y * 0.5, msize.z);
-    hd = i_fOpDifferenceRound(hd, sdBox(tp - vec3(msize2.x * 1.5 + 0.15, msize2.y * 0.3, 0), msize2), 0.01);
+    tp.x = abs(abs(tp.x) - 0.4);
+    hd = i_fOpUnionRound(hd, sdBox(tp, vec3(3, 2, 0.05)), 0.01);
+    // const vec3 msize = vec3(0.575,1.35,0.1);
+    hd = i_fOpDifferenceRound(hd, sdBox(tp - vec3(0.4, -0.135, 0), vec3(0.7, 1.35, 0.1)), 0.01);
+    // const vec3 msize2 = vec3(msize.x, msize.y * 0.5, msize.z);
+    // hd = i_fOpDifferenceRound(hd, sdBox(tp - vec3(msize2.x * 1.5 + 0.15, msize2.y * 0.3, 0), msize2), 0.01);
     // 腰壁
-    hd = min(hd, -0.01 + sdBox(p - vec3(0, -RoomSize.y * 0.25, 0.1), vec3(RoomSize.x - 0.2, RoomSize.y * 0.3, 0.025)));
+    hd = min(hd, -0.01 + sdBox(p - vec3(0, -0.5, 0.1), vec3(2.8, 0.6, 0.025)));
     // 腰壁の穴
-    tp = p - vec3(0, -RoomSize.y * 0.25, 0.1);
-    tp.x = opRepLim(tp.x, 0.2, 6);
-    hd = i_fOpDifferenceRound(hd, sdBox(tp, vec3(0.06, RoomSize.y * 0.25, 0.05)), 0.01);
+    tp = p - vec3(0.2 * clamp(round(p.x / 0.2), -6, 6), -0.5, 0.1);
+    hd = i_fOpDifferenceRound(hd, sdBox(tp, vec3(0.1, 0.5, 0.05)), 0.01);
     // 手すり
-    hd = min(hd, -0.01 + sdBox(p - vec3(0, -RoomSize.y * 0.1 - 0.025, 0), vec3(RoomSize.x - 0.2, 0.05, 0.2)));
+    hd = min(hd, sdBox(p + vec3(0, 0.225, 0), vec3(2.8, 0.05, 0.2)) - 0.01);
 
     // 室外機
     const vec3 size = vec3(0.4, 0.28, 0.1);
@@ -405,6 +403,7 @@ void main()
     // 
     // Set Time
     Time = time;
+    // Time = 63.0;
     // Get UVs
     const vec2 fc = gl_FragCoord.xy, res = resolution.xy, asp = res / min(res.x, res.y);
     const vec2 uv = fc / res;
