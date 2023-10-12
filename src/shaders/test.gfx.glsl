@@ -238,15 +238,12 @@ float sdf(vec3 p)
     // かいだん
     // みぞ
     const float w = 0.05;
-    tp = abs(fract(op * 10.0) - 0.5);
-    float mizo = dot(vec3(2), smoothstep(w, w * 0.5, tp)) / 3.0 * 0.001;
+    tp = abs(fract(op * 10) - 0.5);
+    float mizo = dot(vec3(2), smoothstep(w, w * 0.5, tp)) / 3 * 0.001;
     // かいだん
-    const float i_slope = 0.5;
-    const float i_bd = 0.44;// bound
-
     // #define linearstep(a, b, x) min(max((p.x+1) / ((b) - (a)), 0.0), 1.0)
-    float fy = p.y - saturate((p.x+1)*0.5)*2.0-0.5;
-    float fd = min(min(max((min(abs(fy), abs(fy + RoomSize.y)) - RoomSize.y * 0.25) * i_bd, -p.z), -p.z + 3.0), max(abs(p.x) - RoomSize.x * 0.5 + i_slope, -p.z + 0.5));
+    float fy = p.y - saturate((p.x+1)*0.5)*2-0.5;
+    float fd = min(min(max((min(abs(fy), abs(fy + 2)) - 0.5) * 0.4, -p.z), -p.z + 3), max(abs(p.x) -1, -p.z + 0.5));
     fd += mizo;
     // パイプ
     tp = p - vec3(-RoomSize.x * 0.45, 0, -0.07);
