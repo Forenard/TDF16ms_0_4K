@@ -196,13 +196,13 @@ vec3 Microfacet_BRDF(vec3 albedo, float metallic, float paramRoughness, vec3 L, 
 // ........................
 // 
 // https://mercury.sexy/hg_sdf/
-float fOpUnionRound(float a, float b, float r)
+float i_fOpUnionRound(float a, float b, float r)
 {
     return min(a, b);
     // vec2 u = max(vec2(r - a, r - b), vec2(0));
     // return max(r, min(a, b)) - length(u);
 }
-float fOpDifferenceRound(float a, float b, float r)
+float i_fOpDifferenceRound(float a, float b, float r)
 {
     return max(a, -b);
     // vec2 u = max(vec2(r + a, r - b), vec2(0));
@@ -259,29 +259,27 @@ float sdf(vec3 p)
     fd = min(fd, sdBox(tp + vec3(0.1, 0, 0), vec3(0.05, 0, 0)) - 0.01);
     vec2 dd = abs(vec2(length(tp.xz), tp.y)) - vec2(0.08, 0.02);
     fd = min(fd, min(max(dd.x, dd.y), 0.0) + length(max(dd, 0.0)));
-    // 階段限定
-    fd += isfloor;
 
     // 部屋
     // ベースの壁
     float hd = -p.z;
     // 部屋のあな
-    hd = fOpDifferenceRound(hd, sdBox(p, vec3(RoomSize - 0.2, 4.0)), 0.01);
+    hd = i_fOpDifferenceRound(hd, sdBox(p, vec3(RoomSize - 0.2, 4.0)), 0.01);
     // 窓枠
     tp = p - vec3(0, 0, 0.75);
     tp.x = abs(tp.x);
     const vec2 rsize = RoomSize - 0.2;
-    hd = fOpUnionRound(hd, sdBox(tp, vec3(rsize, 0.05)), 0.01);
+    hd = i_fOpUnionRound(hd, sdBox(tp, vec3(rsize, 0.05)), 0.01);
     const vec3 msize = vec3(rsize.x * 0.25 - 0.125, rsize.y * 0.75, 0.1);
-    hd = fOpDifferenceRound(hd, sdBox(tp - vec3(msize.x * 0.5 + 0.05, -msize.y * 0.1, 0), msize), 0.01);
+    hd = i_fOpDifferenceRound(hd, sdBox(tp - vec3(msize.x * 0.5 + 0.05, -msize.y * 0.1, 0), msize), 0.01);
     const vec3 msize2 = vec3(msize.x, msize.y * 0.5, msize.z);
-    hd = fOpDifferenceRound(hd, sdBox(tp - vec3(msize2.x * 1.5 + 0.15, msize2.y * 0.3, 0), msize2), 0.01);
+    hd = i_fOpDifferenceRound(hd, sdBox(tp - vec3(msize2.x * 1.5 + 0.15, msize2.y * 0.3, 0), msize2), 0.01);
     // 腰壁
     hd = min(hd, -0.01 + sdBox(p - vec3(0, -RoomSize.y * 0.25, 0.1), vec3(RoomSize.x - 0.2, RoomSize.y * 0.3, 0.025)));
     // 腰壁の穴
     tp = p - vec3(0, -RoomSize.y * 0.25, 0.1);
     tp.x = opRepLim(tp.x, 0.2, 6);
-    hd = fOpDifferenceRound(hd, sdBox(tp, vec3(0.06, RoomSize.y * 0.25, 0.05)), 0.01);
+    hd = i_fOpDifferenceRound(hd, sdBox(tp, vec3(0.06, RoomSize.y * 0.25, 0.05)), 0.01);
     // 手すり
     hd = min(hd, -0.01 + sdBox(p - vec3(0, -RoomSize.y * 0.1 - 0.025, 0), vec3(RoomSize.x - 0.2, 0.05, 0.2)));
 
@@ -289,7 +287,7 @@ float sdf(vec3 p)
     const vec3 size = vec3(0.4, 0.28, 0.1);
     td = -0.01 + sdBox(p - vec3(1.1, -0.77, -0.02), size);
     tp = p - vec3(1.1, -0.77, -0.02) - vec3(-0.06, 0, -0.1);
-    td = fOpDifferenceRound(td, sdBox(tp, vec3(0, 0, 0.1)) - 0.1, 0.005);
+    td = i_fOpDifferenceRound(td, sdBox(tp, vec3(0, 0, 0.1)) - 0.1, 0.005);
     tp.z -= 0.05;
     td = min(td, length(tp) - 0.015);
     // ひだひだ
@@ -297,13 +295,11 @@ float sdf(vec3 p)
     float a = atan(tp.y, tp.x);
     a = mod(a, div * 2.0) - div;
     tp.xy = orbit(a) * length(tp.xy);
-    td = fOpUnionRound(td, sdBox(tp, vec3(0.2, 0, 0)) - 0.002, 0.005);
+    td = i_fOpUnionRound(td, sdBox(tp, vec3(0.2, 0, 0)) - 0.002, 0.005);
     hd = min(hd, td);
-    // 部屋限定
-    hd += isroom;
 
     // 部屋と階段の合成
-    float d = min(hd, fd);
+    float d = isfloorB ? fd : hd;
 
     // カーテン
     float shimaru = smoothstep(0.0, 1.5, 0.9 - p.y);
@@ -323,14 +319,10 @@ float sdf(vec3 p)
 
     // 部屋のライト
     td2 = length(p - vec3(sign(h3.x - 0.5), -0.09, 0)) - 0.1;
-    // 部屋限定
-    td2 += isroom;
     // 階段のライト
     td = length(p - vec3(-RoomSize * 0.5 + 0.1, 2.9)) - 0.1;
-    // 階段限定
-    td += isfloor;
     // 部屋と階段のライトを合成
-    td = min(td, td2);
+    td = isfloorB ? td : td2;
     // ライトを合成
     MatID = (td < d ? 2 : MatID);
     d = min(d, td);
@@ -351,9 +343,9 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
         rp = ro + rd * len;
 
         // abs z
-        rp.z = (90.0<=Time&&Time<105.0 ? abs(rp.z) - 2.0 : rp.z);
+        rp.z = (90.0 <= Time && Time < 105.0 ? abs(rp.z) - 2.0 : rp.z);
         // polar
-        rp.xz = (105.0<=Time&&Time<120.0 ? vec2((atan(rp.z, rp.x) + PI) / TAU * RoomSize.x * 8.0, length(rp.xz)-4.0) : rp.xz);
+        rp.xz = (105.0 <= Time && Time < 120.0 ? vec2((atan(rp.z, rp.x) + PI) / TAU * RoomSize.x * 8.0, length(rp.xz) - 4.0) : rp.xz);
 
         // sdf
         dist = sdf(rp);
@@ -441,7 +433,7 @@ void main()
     float ft = Time / 15.0;
     int id = int(ft) % 8;
     float lt = fract(ft);
-    float mx = (id==4?(floor(lt*4.0)+lt)*0.25:lt);
+    float mx = (id == 4 ? (floor(lt * 4.0) + lt) * 0.25 : lt);
     ro = mix(ro0[id], ro1[id], mx);
     dir = normalize(mix(dir0[id], dir1[id], mx));
     // ADD 手振れ
@@ -540,7 +532,7 @@ void main()
     // unlit
     shaded = mix(shaded, albedo, type);
     // sky
-    vec3 sky = vec3(mix(0.01, 0.3, saturate((rd.y + 0.5) * 0.5)))*smoothstep(1.0, 0.9, rd.y);
+    vec3 sky = vec3(mix(0.01, 0.3, saturate((rd.y + 0.5) * 0.5))) * smoothstep(1.0, 0.9, rd.y);
     vec3 col = mix(sky, shaded, hit.x);
 
     // 
