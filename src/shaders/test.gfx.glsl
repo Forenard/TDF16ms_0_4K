@@ -215,7 +215,7 @@ float sdBox(vec3 p, vec3 b)
     return min(max(d.x, max(d.y, d.z)), 0.0) + length(max(d, 0.0));
 }
 
-const vec2 RoomSize = vec2(6, 4) * 0.5;
+const vec2 RoomSize = vec2(3, 2);
 vec2 opRoomRep(inout vec3 p)
 {
     vec2 ip = floor(p.xy / RoomSize) * RoomSize + RoomSize * 0.5;
@@ -233,20 +233,20 @@ float sdf(vec3 p)
     vec3 tp;
 
     bool isfloorB = fract(0.5 * ip.x / RoomSize.x) < 0.5;
-    float isfloor = float(!isfloorB) * 1e9;
+    // float isfloor = float(!isfloorB) * 1e9;
     float isroom = float(isfloorB) * 1e9;
 
     // かいだん
     // みぞ
-    const float w = 0.04;
+    const float w = 0.05;
     tp = abs(fract(op * 10.0) - 0.5);
-    float mizo = dot(vec3(1), smoothstep(w, w * 0.5, tp)) / 3.0 * 0.001;
+    float mizo = dot(vec3(2), smoothstep(w, w * 0.5, tp)) / 3.0 * 0.001;
     // かいだん
-    const float slope = RoomSize.x * 0.2;
-    const float bd = slope * 2.0 / sqrt(RoomSize.y * RoomSize.y + slope * slope * 4.0);// bound
-    float cy = linearstep(-RoomSize.x * 0.5 + slope, RoomSize.x * 0.5 - slope, p.x) * RoomSize.y + RoomSize.y * 0.25;
-    float fy = p.y - cy;
-    float fd = min(min(max((min(abs(fy), abs(fy + RoomSize.y)) - RoomSize.y * 0.25) * bd, -p.z), -p.z + 3.0), max(abs(p.x) - RoomSize.x * 0.5 + slope, -p.z + 0.5));
+    const float i_slope = 0.5;
+    const float i_bd = 0.44;// bound
+    float i_cy = linearstep(-RoomSize.x * 0.5 + i_slope, RoomSize.x * 0.5 - i_slope, p.x) * RoomSize.y + RoomSize.y * 0.25;
+    float fy = p.y - i_cy;
+    float fd = min(min(max((min(abs(fy), abs(fy + RoomSize.y)) - RoomSize.y * 0.25) * i_bd, -p.z), -p.z + 3.0), max(abs(p.x) - RoomSize.x * 0.5 + i_slope, -p.z + 0.5));
     fd += mizo;
     // パイプ
     tp = p - vec3(-RoomSize.x * 0.45, 0, -0.07);
@@ -268,9 +268,9 @@ float sdf(vec3 p)
     // 窓枠
     tp = p - vec3(0, 0, 0.75);
     tp.x = abs(tp.x);
-    const vec2 rsize = RoomSize - 0.2;
-    hd = i_fOpUnionRound(hd, sdBox(tp, vec3(rsize, 0.05)), 0.01);
-    const vec3 msize = vec3(rsize.x * 0.25 - 0.125, rsize.y * 0.75, 0.1);
+    const vec2 i_rsize = RoomSize - 0.2;
+    hd = i_fOpUnionRound(hd, sdBox(tp, vec3(i_rsize, 0.05)), 0.01);
+    const vec3 msize = vec3(i_rsize.x * 0.25 - 0.125, i_rsize.y * 0.75, 0.1);
     hd = i_fOpDifferenceRound(hd, sdBox(tp - vec3(msize.x * 0.5 + 0.05, -msize.y * 0.1, 0), msize), 0.01);
     const vec3 msize2 = vec3(msize.x, msize.y * 0.5, msize.z);
     hd = i_fOpDifferenceRound(hd, sdBox(tp - vec3(msize2.x * 1.5 + 0.15, msize2.y * 0.3, 0), msize2), 0.01);
