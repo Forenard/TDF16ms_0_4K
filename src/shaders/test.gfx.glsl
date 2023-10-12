@@ -395,14 +395,6 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
 
 const vec3 DirectionalLight = normalize(vec3(1, 1, -1));
 
-vec3 sky(vec3 rd)
-{
-    float up = saturate((rd.y + 0.5) * 0.5);
-    vec3 col = vec3(mix(0.01, 0.3, up));
-    col *= smoothstep(1.0, 0.9, rd.y);
-    return col;
-}
-
 // 
 // .%%...%%...%%%%...%%%%%%..%%..%%.
 // .%%%.%%%..%%..%%....%%....%%%.%%.
@@ -440,26 +432,26 @@ void main()
     // .................................................
     // 
     // Parameter
-    const float fov = 75.0;
     vec3 ro = vec3(1), dir = vec3(0, 0, -1), rd;
     // シーケンス
-    const vec3 ro0[] = vec3[](vec3(0.2, 0.2, 2.2), vec3(0.4, 0.2, 2.0), vec3(0.8 - RoomSize.x, -1.0, 0), vec3(-0.5, -1.8, -0.3), vec3(0, 0, -1.0), vec3(0, 0, -6), vec3(0), vec3(0));
-    const vec3 ro1[] = vec3[](vec3(0.1, 0.1, 1.5), vec3(0.35, 0.6, 0.4), vec3(-0.1, -1.0, 0), vec3(0.2 - RoomSize.x, -1.8, -0.3), vec3(0, 0, -1.0), vec3(0, 30, -9), vec3(-70, 0, 0), vec3(0, 70, 0));
+    const vec3 ro0[] = vec3[](vec3(0.2, 0.2, 2.2), vec3(0.4, 0.2, 2.0), vec3(0.8 - RoomSize.x, -1.0, 0), vec3(-0.5, -1.8, -0.3), vec3(0, 0, -3), vec3(0, 0, -6), vec3(0), vec3(0));
+    const vec3 ro1[] = vec3[](vec3(0.1, 0.1, 1.5), vec3(0.35, 0.6, 0.4), vec3(-0.1, -1.0, 0), vec3(0.2 - RoomSize.x, -1.8, -0.3), vec3(0, 0, -15), vec3(0, 30, -9), vec3(-70, 0, 0), vec3(0, 70, 0));
     const vec3 dir0[] = vec3[](vec3(0.5, 1.5, 1), vec3(-0.5, -1, -1), vec3(-1, -0.1, 0.3), vec3(1, 0.2, 0.8), vec3(0, 0, 1), vec3(-0.2, 0, 1), vec3(-1, 0.2, 0), vec3(1, 1, 0));
     const vec3 dir1[] = vec3[](vec3(0.1, 0.1, 1), vec3(0, 0, -1), vec3(-1, -0.1, 1), vec3(1, 0.2, 0.8), vec3(0, 0, 1), vec3(0.2, 0, 1), vec3(-1, -0.2, 0), vec3(0, 1, 0.1));
     float ft = Time / 15.0;
     int id = int(ft) % 8;
     float lt = fract(ft);
-    ro = mix(ro0[id], ro1[id], lt);
-    dir = normalize(mix(dir0[id], dir1[id], lt));
+    float mx = (id==4?(floor(lt*4.0)+lt)*0.25:lt);
+    ro = mix(ro0[id], ro1[id], mx);
+    dir = normalize(mix(dir0[id], dir1[id], mx));
     // ADD 手振れ
-    const vec3 tebure = (fbm32(vec2(2, Time * 0.1)) - 0.5) * 0.16;
-    ro += tebure;
+    // const vec3 tebure = (fbm32(vec2(2, Time * 0.1)) - 0.5) * 0.16;
+    // ro += tebure;
     // rdを計算
     const vec3 B = normalize(cross(vec3(0, 1, 0), dir));
     const mat3 bnt = mat3(B, normalize(cross(dir, B)), dir);
-    const float zf = 1.0 / tan(fov * PI / 360.0);
-    rd = normalize(bnt * vec3(suv, zf));
+    const float fov = 75.0;
+    rd = normalize(mat3(B, normalize(cross(dir, B)), dir) * vec3(suv, 1.0 / tan(fov * PI / 360.0)));
 
     // 
     // .%%%%%....%%%%...%%..%%..........%%%%%%..%%%%%....%%%%....%%%%...%%%%%%.
@@ -472,8 +464,8 @@ void main()
     // Trace
     vec3 P;
     vec2 hit = march(rd, ro, P);
-    const float h = NormalEPS;
-    const vec2 k = vec2(1, -1);
+    float h = NormalEPS;
+    vec2 k = vec2(1, -1);
     int mid = MatID;
     vec3 N = normalize(k.xyy * sdf(P + k.xyy * h) + k.yyx * sdf(P + k.yyx * h) + k.yxy * sdf(P + k.yxy * h) + k.xxx * sdf(P + k.xxx * h));
     MatID = mid;
@@ -501,7 +493,7 @@ void main()
     float roughness = 0.5;
     float metallic = 0.5;
     // ポイントライトの色
-    vec3 plcol = (step(hash.y, 0.9) * 0.8 + 0.2) * mix(k2000, k12000, hash.x);
+    vec3 plcol = mix(k2000, k12000, hash.x);
     if(MatID == 0)
     {
         // Mat:Concrete
@@ -548,7 +540,8 @@ void main()
     // unlit
     shaded = mix(shaded, albedo, type);
     // sky
-    vec3 col = mix(sky(rd), shaded, hit.x);
+    vec3 sky = vec3(mix(0.01, 0.3, saturate((rd.y + 0.5) * 0.5)))*smoothstep(1.0, 0.9, rd.y);
+    vec3 col = mix(sky, shaded, hit.x);
 
     // 
     // .%%%%%....%%%%....%%%%...%%%%%%..%%%%%...%%%%%....%%%%....%%%%...%%%%%%...%%%%....%%%%..
