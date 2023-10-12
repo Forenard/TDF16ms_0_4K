@@ -342,7 +342,7 @@ float sdf(vec3 p)
 vec2 march(vec3 rd, vec3 ro, out vec3 rp)
 {
     const float w = 0.02;
-    const float minv = 0.1;
+    const float minv = 0.05;
     float v = 1.0, ph = LenMax;
     float dist, len = 0.0;
 
@@ -350,19 +350,12 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
     {
         rp = ro + rd * len;
 
-        float _lt;
         // abs z
-        if(tl(90.0, 105.0, _lt))
-        {
-            rp.z = abs(rp.z) - 2.0;
-        }
+        rp.z = (90.0<=Time&&Time<105.0 ? abs(rp.z) - 2.0 : rp.z);
         // polar
-        if(tl(105.0, 120.0, _lt))
-        {
-            rp.xz = vec2((atan(rp.z, rp.x) + PI) / TAU * RoomSize.x * 8.0, length(rp.xz));
-            rp.z -= 4.0;
-        }
+        rp.xz = (105.0<=Time&&Time<120.0 ? vec2((atan(rp.z, rp.x) + PI) / TAU * RoomSize.x * 8.0, length(rp.xz)-4.0) : rp.xz);
 
+        // sdf
         dist = sdf(rp);
 
         // shadow
@@ -404,16 +397,9 @@ const vec3 DirectionalLight = normalize(vec3(1, 1, -1));
 
 vec3 sky(vec3 rd)
 {
-    vec2 th = vec2(atan(rd.x, -rd.z), acos(rd.y) * 2.0) / TAU * 20.0 + vec2(0.05, 0.01) * Time;
-    vec3 scol = vec3(mix(0.1, 0.5, fbm32(th).x));
     float up = saturate((rd.y + 0.5) * 0.5);
-    vec3 col = mix(vec3(0.01), scol, up);
-    // sun
-    float sun = saturate(dot(rd, DirectionalLight));
-    sun = smoothstep(0.8, 1.0, sun);
-    col *= mix(1.0, 3.0, sun);
-    col = mix(col, vec3(1.0), pow(linearstep(0.995, 1.0, sun * sun), 5.0));
-    col *= linearstep(1.0, 0.9, rd.y);
+    vec3 col = vec3(mix(0.01, 0.3, up));
+    col *= smoothstep(1.0, 0.9, rd.y);
     return col;
 }
 
@@ -454,75 +440,25 @@ void main()
     // .................................................
     // 
     // Parameter
-    float fov = 60.0;
-    float fisheye = 0.0;
+    const float fov = 75.0;
     vec3 ro = vec3(1), dir = vec3(0, 0, -1), rd;
     // シーケンス
-    float lt = 0.0;
-    // Time = 46.28;
-
-    const vec3 ro0[] = vec3[](vec3(0.2, 0.2, 2.2), vec3(0.4, 0.2, 2.0), vec3(0.8 - RoomSize.x, -1.0, 0), vec3(-0.5, -1.8, -0.3), vec3(0, 0, -1.0), vec3(0, 0, -3), vec3(0), vec3(0));
-    const vec3 ro1[] = vec3[](vec3(0.1, 0.1, 1.5), vec3(0.35, 0.6, 0.4), vec3(-0.1, -1.0, 0), vec3(0.2 - RoomSize.x, -1.8, -0.3), vec3(0, 0, -1.0), vec3(0, 0, -3), vec3(0), vec3(0));
-
-    const vec3 dir0[] = vec3[](vec3(0.5, 1.5, 1), vec3(-0.5, -1, -1), vec3(-1, -0.1, 0.3), vec3(1, 0.2, 0.8), vec3(0, 0, 1), vec3(0, 0, 1), vec3(-1, 0.2, 0), vec3(0, 1, 0));
-    const vec3 dir1[] = vec3[](vec3(0.1, 0.1, 1), vec3(0, 0, -1), vec3(-1, -0.1, 0.3), vec3(1, 0.2, 0.8), vec3(0, 0, 1), vec3(0, 0, 1), vec3(-1, -0.2, 0), vec3(0, 1, 1));
-
+    const vec3 ro0[] = vec3[](vec3(0.2, 0.2, 2.2), vec3(0.4, 0.2, 2.0), vec3(0.8 - RoomSize.x, -1.0, 0), vec3(-0.5, -1.8, -0.3), vec3(0, 0, -1.0), vec3(0, 0, -6), vec3(0), vec3(0));
+    const vec3 ro1[] = vec3[](vec3(0.1, 0.1, 1.5), vec3(0.35, 0.6, 0.4), vec3(-0.1, -1.0, 0), vec3(0.2 - RoomSize.x, -1.8, -0.3), vec3(0, 0, -1.0), vec3(0, 30, -9), vec3(-70, 0, 0), vec3(0, 70, 0));
+    const vec3 dir0[] = vec3[](vec3(0.5, 1.5, 1), vec3(-0.5, -1, -1), vec3(-1, -0.1, 0.3), vec3(1, 0.2, 0.8), vec3(0, 0, 1), vec3(-0.2, 0, 1), vec3(-1, 0.2, 0), vec3(1, 1, 0));
+    const vec3 dir1[] = vec3[](vec3(0.1, 0.1, 1), vec3(0, 0, -1), vec3(-1, -0.1, 1), vec3(1, 0.2, 0.8), vec3(0, 0, 1), vec3(0.2, 0, 1), vec3(-1, -0.2, 0), vec3(0, 1, 0.1));
     float ft = Time / 15.0;
-    int id = int(ft)%8;
-    lt = fract(ft);
+    int id = int(ft) % 8;
+    float lt = fract(ft);
     ro = mix(ro0[id], ro1[id], lt);
     dir = normalize(mix(dir0[id], dir1[id], lt));
-    // if(tl(0.0, 15.0, lt))
-    // {
-    //     ro = vec3(0.2, 0.2, mix(2.2, 1.5, lt));
-    //     dir = normalize(mix(vec3(0.5, 1.5, 1), vec3(0.1, 0.1, 1), lt));
-    // }
-    // else if(tl(15.0, 30.0, lt))
-    // {
-    //     ro = mix(vec3(0.4, 0.2, 2.0), vec3(0.35, 0.6, 0.4), lt);
-    //     dir = normalize(mix(vec3(-0.5, -1, -1), vec3(0, 0, -1), lt));
-    // }
-    // else if(tl(30.0, 45.0, lt))
-    // {
-    //     ro = vec3(mix(0.8 - RoomSize.x, -0.1, lt), -1.0, 0);
-    //     dir = normalize(vec3(-1, -0.1, 0.3));
-    // }
-    // else if(tl(45.0, 60.0, lt))
-    // {
-    //     ro = vec3(mix(-0.5, 0.2 - RoomSize.x, lt), -1.8, -0.3);
-    //     dir = normalize(vec3(1, 0.2, 0.8));
-    // }
-    // else if(tl(60.0, 75.0, lt))
-    // {
-    //     float z = floor(lt * 3.0) * 8.0 + fract(lt * 3.0);
-    //     ro = vec3(0, 0, -1.0 - z);
-    //     dir = vec3(0, 0, 1);
-    // }
-    // else if(tl(77.0, 90.0, lt))
-    // {
-    //     float t = 20.0 * lt;
-    //     vec3 ta = vec3(-RoomSize.x * 0.5 + 0.3, t * RoomSize.y, 0.0);
-    //     ro = ta + vec3(mix(3, -3, lt), -5, -3);
-    //     dir = normalize(ta - ro);
-    // }
-    // else if(tl(90.0, 105.0, lt))
-    // {
-    //     ro = vec3(-Time * 4.0, 0, 0);
-    //     dir = normalize(vec3(-1, mix(0.2, -0.2, lt), 0));
-    // }
-    // else if(tl(105.0, 120.0, lt))
-    // {
-    //     ro = vec3(0, Time * 2.0, 0);
-    //     dir = normalize(vec3(0, 1, mix(0.0, 1.0, lt)));
-    //     dir.xz *= rot(PI * lt);
-    // }
     // ADD 手振れ
-    const vec3 tebure = (fbm32(vec2(-4.2, Time * 0.1)) * 2.0 - 1.0) * 0.05;
+    const vec3 tebure = (fbm32(vec2(2, Time * 0.1)) - 0.5) * 0.16;
     ro += tebure;
     // rdを計算
     const vec3 B = normalize(cross(vec3(0, 1, 0), dir));
     const mat3 bnt = mat3(B, normalize(cross(dir, B)), dir);
-    const float zf = 1.0 / tan(fov * PI / 360.0) * (1.0 - length(suv) * fisheye);
+    const float zf = 1.0 / tan(fov * PI / 360.0);
     rd = normalize(bnt * vec3(suv, zf));
 
     // 
@@ -536,7 +472,6 @@ void main()
     // Trace
     vec3 P;
     vec2 hit = march(rd, ro, P);
-    float depth = length(P - ro);
     const float h = NormalEPS;
     const vec2 k = vec2(1, -1);
     int mid = MatID;
@@ -602,17 +537,18 @@ void main()
     // primary shading
     vec3 shaded = vec3(0);
     // directional light
-    shaded += visible * Microfacet_BRDF(albedo, metallic, roughness, DirectionalLight, -rd, N) * k12000;
+    shaded += visible * Microfacet_BRDF(albedo, metallic, roughness, DirectionalLight, -rd, N) * k12000 * 0.5;
     // point light
     vec3 L = (isfloorB ? vec3(-RoomSize * 0.5 + 0.1, 2.9) : vec3(sign(hash.x - 0.5), -0.06, 0)) - RP;
     float l = length(L);
-    vec3 lcol = plcol * pow(1.0 / (1.0 + max(0.0, l)), 2.0);
+    vec3 lcol = plcol * pow(1.0 / (1.0 + max(0.0, l - 1.0)), 2.0);
     shaded += Microfacet_BRDF(albedo, metallic, roughness, L / l, -rd, N) * lcol;
     // ao
     shaded *= sqrt(saturate(sdf(P + N * 0.05) / 0.05));
+    // unlit
     shaded = mix(shaded, albedo, type);
     // sky
-    vec4 traced = mix(vec4(sky(rd), LenMax), vec4(shaded, depth), hit.x);
+    vec3 col = mix(sky(rd), shaded, hit.x);
 
     // 
     // .%%%%%....%%%%....%%%%...%%%%%%..%%%%%...%%%%%....%%%%....%%%%...%%%%%%...%%%%....%%%%..
@@ -622,12 +558,10 @@ void main()
     // .%%.......%%%%....%%%%.....%%....%%......%%..%%...%%%%....%%%%...%%%%%%...%%%%....%%%%..
     // ........................................................................................
     // 
-    // Postprocess
-    vec3 col = traced.rgb;
     // noise乗せた方が雰囲気いいかも
     col += h3 * 0.03;
     // 嘘 Gamma Correction
-    col = pow(col, vec3(0.8));
+    col = pow(col, vec3(0.6));
     // aces
     const float a = 2.51;
     const float b = 0.03;
@@ -636,14 +570,12 @@ void main()
     const float e = 0.14;
     col = (col * (a * col + b)) / (col * (c * col + d) + e);
     // カラグレ
-    col.r = smoothstep(-0.05, 1.05, col.r);
-
+    col.rg = smoothstep(.0, 1., col.rg);
     // トランジション
     col *= saturate((0.5 - abs(lt - 0.5)) * 10.0);
-    traced.rgb = col;
-
     // TAA&MotionBlur
     const float ema = 0.5;
+    vec4 now = vec4(col, 1.0);
     vec4 back = texture(backBuffer0, uv);
-    outColor0 = mix(traced, back, ema);
+    outColor0 = mix(now, back, ema);
 }
