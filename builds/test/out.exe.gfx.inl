@@ -84,7 +84,7 @@
    "vec3 a;"
    "bool d=fract(.5*f.x/u.x)<.5;"
    "a=abs(fract(m*10.)-.5);"
-   "float o=dot(vec3(2),smoothstep(.05,.025,a))/3.*.001,b=v.y-min(max((v.x--u.x*.5-.5)/(u.x*.5-.5--u.x*.5-.5),0.),1.)*u.y-u.y*.25,r=min(min(max((min(abs(b),abs(b+u.y))-u.y*.25)*.44,-v.z),-v.z+3.),max(abs(v.x)-u.x*.5+.5,-v.z+.5));"
+   "float o=dot(vec3(2),smoothstep(.05,.025,a))/3.*.001,b=v.y-clamp((v.x+1)*.5,0.,1.)*2.-.5,r=min(min(max((min(abs(b),abs(b+u.y))-u.y*.25)*.44,-v.z),-v.z+3.),max(abs(v.x)-u.x*.5+.5,-v.z+.5));"
    "r+=o;"
    "a=v-vec3(-u.x*.45,0,-.07);"
    "a.x=abs(a.x-.1)-.1;"

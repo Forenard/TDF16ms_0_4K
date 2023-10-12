@@ -58,7 +58,6 @@ const vec3 k12000 = vec3(191, 211, 255) / 255.0;
 #define remap(x,a,b,c,d) ((((x)-(a))/((b)-(a)))*((d)-(c))+(c))
 #define remapc(x,a,b,c,d) clamp(remap(x,a,b,c,d),min(c,d),max(c,d))
 #define saturate(x) clamp(x,0.0,1.0)
-#define linearstep(a, b, x) min(max(((x) - (a)) / ((b) - (a)), 0.0), 1.0)
 #define opRepLim(p,c,l) ((p)-(c)*clamp(round((p)/(c)),-(l),(l)))
 #define opRepLimID(p,c,l) (clamp(round((p)/(c)),-(l),(l))+(l))
 
@@ -244,8 +243,9 @@ float sdf(vec3 p)
     // かいだん
     const float i_slope = 0.5;
     const float i_bd = 0.44;// bound
-    float i_cy = linearstep(-RoomSize.x * 0.5 + i_slope, RoomSize.x * 0.5 - i_slope, p.x) * RoomSize.y + RoomSize.y * 0.25;
-    float fy = p.y - i_cy;
+
+    // #define linearstep(a, b, x) min(max((p.x+1) / ((b) - (a)), 0.0), 1.0)
+    float fy = p.y - saturate((p.x+1)*0.5)*2.0-0.5;
     float fd = min(min(max((min(abs(fy), abs(fy + RoomSize.y)) - RoomSize.y * 0.25) * i_bd, -p.z), -p.z + 3.0), max(abs(p.x) - RoomSize.x * 0.5 + i_slope, -p.z + 0.5));
     fd += mizo;
     // パイプ
