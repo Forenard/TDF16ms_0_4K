@@ -214,11 +214,11 @@ float sdBox(vec3 p, vec3 b)
     return min(max(d.x, max(d.y, d.z)), 0.0) + length(max(d, 0.0));
 }
 
-const vec2 RoomSize = vec2(3, 2);
+
 vec2 opRoomRep(inout vec3 p)
 {
-    vec2 ip = floor(p.xy / RoomSize) * RoomSize + RoomSize * 0.5;
-    p.xy = mod(p.xy, RoomSize) - 0.5 * RoomSize;
+    vec2 ip = floor(p.xy / vec2(3, 2)) * vec2(3, 2) + vec2(1.5, 1);
+    p.xy -= ip;
     return ip;
 }
 
@@ -231,7 +231,7 @@ float sdf(vec3 p)
     float td, td2;
     vec3 tp;
 
-    bool isfloorB = fract(0.5 * ip.x / RoomSize.x) < 0.5;
+    bool isfloorB = fract(0.5 * ip.x / 3.0) < 0.5;
     // float isfloor = float(!isfloorB) * 1e9;
     float isroom = float(isfloorB) * 1e9;
 
@@ -257,7 +257,7 @@ float sdf(vec3 p)
 
     // 部屋
     // ベースの壁
-    float hd = -p.z-0.11;
+    float hd = -p.z - 0.11;
     // 部屋のあな
     hd = i_fOpDifferenceRound(hd, sdBox(p, vec3(2.8, 1.8, 4)), 0.01);
     // 窓枠
@@ -289,15 +289,14 @@ float sdf(vec3 p)
     float d = isfloorB ? fd : hd;
 
     // カーテン
-    float shimaru = smoothstep(0.0, 1.5, 0.9 - p.y);
-    const vec3 ksize = vec3(RoomSize - 0.4, 0.01);
+    float shimaru = smoothstep(0.0, 2.0, 1.0 - p.y);
     vec3 kp = p;
-    kp.x *= mix(1.1, 1.0, shimaru);
-    float shf = h3.x * TAU;
-    float lt = Time * 0.5 + shf;
-    float kz = cos(shf + kp.x * PI * 7.0 + 0.5 * PI * cos(kp.x * 7.0)) * 0.05 + cos(kp.x * 2.0 + lt * 2.0 + 0.5 * PI * cos(lt)) * 0.05;
-    kp -= vec3(0, 0, 1.0 + kz * shimaru);
-    td = sdBox(kp, ksize) * 0.5 - 0.01;
+    kp.x *= mix(1.2, 1.0, shimaru);
+    // float shf = h3.x * TAU;
+    float lt = Time + h3.x * TAU;
+    float kz = cos(kp.x * PI * 8.0 + cos(kp.x * 8.0)) * 0.05 + sin(kp.x * 4.0 + lt + 0.5 * cos(lt)) * 0.05;
+    kp.z -= 1.0 + kz * shimaru;
+    td = sdBox(kp, vec3(2.6, 1.6, 0.01)) * 0.5 - 0.01;
     // 部屋限定
     td += isroom;
     // カーテンを合成
@@ -307,7 +306,7 @@ float sdf(vec3 p)
     // 部屋のライト
     td2 = length(p - vec3(sign(h3.x - 0.5), -0.09, 0)) - 0.1;
     // 階段のライト
-    td = length(p - vec3(-RoomSize * 0.5 + 0.1, 2.9)) - 0.1;
+    td = length(p - vec3(-1.4, -0.9, 2.9)) - 0.1;
     // 部屋と階段のライトを合成
     td = isfloorB ? td : td2;
     // ライトを合成
@@ -332,7 +331,7 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
         // abs z
         rp.z = (90.0 <= Time && Time < 105.0 ? abs(rp.z) - 2.0 : rp.z);
         // polar
-        rp.xz = (105.0 <= Time && Time < 120.0 ? vec2((atan(rp.z, rp.x) + PI) / TAU * RoomSize.x * 8.0, length(rp.xz) - 4.0) : rp.xz);
+        rp.xz = (105.0 <= Time && Time < 120.0 ? vec2((atan(rp.z, rp.x) + PI) / TAU * 24, length(rp.xz) - 4.0) : rp.xz);
 
         // sdf
         dist = sdf(rp);
@@ -344,8 +343,8 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
         ph = dist;
 
         // traverse
-        vec2 irp = (floor((rp.xy + sign(rd.xy) * RoomSize) / RoomSize) + 0.5) * RoomSize;
-        vec2 bd = abs(irp - rp.xy) - 0.5 * RoomSize;
+        vec2 irp = floor(rp.xy / vec2(3, 2) + sign(rd.xy)) * vec2(3, 2) + vec2(1.5, 1);
+        vec2 bd = abs(irp - rp.xy) - vec2(1.5, 1);
         bd = max(bd, 0.0) / abs(rd.xy) + DistMin + float(rp.z < -2.0) * LenMax;
         dist = min(dist, min(bd.x, bd.y));
 
@@ -395,7 +394,7 @@ void main()
     // 
     // Set Time
     Time = time;
-    Time = 46.5;
+    // Time = mix(38.0,42.0,fract(time/4.0));
     // Get UVs
     const vec2 fc = gl_FragCoord.xy, res = resolution.xy, asp = res / min(res.x, res.y);
     const vec2 uv = fc / res;
@@ -414,8 +413,8 @@ void main()
     // Parameter
     vec3 ro = vec3(1), dir = vec3(0, 0, -1), rd;
     // シーケンス
-    const vec3 ro0[] = vec3[](vec3(0.2, 0.2, 2.2), vec3(0.4, 0.2, 2.0), vec3(0.8 - RoomSize.x, -1.0, 0), vec3(-0.5, -1.8, -0.3), vec3(0, 0, -3), vec3(0, 0, -6), vec3(0), vec3(0));
-    const vec3 ro1[] = vec3[](vec3(0.1, 0.1, 1.5), vec3(0.35, 0.6, 0.4), vec3(-0.1, -1.0, 0), vec3(0.2 - RoomSize.x, -1.8, -0.3), vec3(0, 0, -15), vec3(0, 30, -9), vec3(-70, 0, 0), vec3(0, 70, 0));
+    const vec3 ro0[] = vec3[](vec3(0.2, 0.2, 2.2), vec3(0.4, 0.2, 2.0), vec3(-2.2, -1.0, 0), vec3(-0.5, -1.8, -0.3), vec3(0, 0, -3), vec3(0, 0, -6), vec3(0), vec3(0));
+    const vec3 ro1[] = vec3[](vec3(0.1, 0.1, 1.5), vec3(0.35, 0.6, 0.4), vec3(-0.1, -1.0, 0), vec3(-2.8, -1.8, -0.3), vec3(0, 0, -15), vec3(0, 30, -9), vec3(-70, 0, 0), vec3(0, 70, 0));
     const vec3 dir0[] = vec3[](vec3(0.5, 1.5, 1), vec3(-0.5, -1, -1), vec3(-1, -0.1, 0.3), vec3(1, 0.2, 0.8), vec3(0, 0, 1), vec3(-0.2, 0, 1), vec3(-1, 0.2, 0), vec3(1, 1, 0));
     const vec3 dir1[] = vec3[](vec3(0.1, 0.1, 1), vec3(0, 0, -1), vec3(-1, -0.1, 1), vec3(1, 0.2, 0.8), vec3(0, 0, 1), vec3(0.2, 0, 1), vec3(-1, -0.2, 0), vec3(0, 1, 0.1));
     float ft = Time / 15.0;
@@ -465,7 +464,7 @@ void main()
     // identify
     vec3 RP = P;
     vec2 ip = opRoomRep(RP);
-    bool isfloorB = fract(0.5 * ip.x / RoomSize.x) < 0.5;
+    bool isfloorB = fract(0.5 * ip.x / 3.0) < 0.5;
     vec3 hash = pcg33(vec3(ip, 0));
     // get mat
     float type = MAT_PBR;
@@ -511,7 +510,7 @@ void main()
     // directional light
     shaded += visible * Microfacet_BRDF(albedo, metallic, roughness, DirectionalLight, -rd, N) * k12000 * 0.5;
     // point light
-    vec3 L = (isfloorB ? vec3(-RoomSize * 0.5 + 0.1, 2.9) : vec3(sign(hash.x - 0.5), -0.06, 0)) - RP;
+    vec3 L = (isfloorB ? vec3(-1.4, -0.9, 2.9) : vec3(sign(hash.x - 0.5), -0.06, 0)) - RP;
     float l = length(L);
     vec3 lcol = plcol * pow(1.0 / (1.0 + max(0.0, l - 1.0)), 2.0);
     shaded += Microfacet_BRDF(albedo, metallic, roughness, L / l, -rd, N) * lcol;
