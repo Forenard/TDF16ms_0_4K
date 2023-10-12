@@ -55,11 +55,7 @@ const float GOLD = PI * (3.0 - sqrt(5.0));// 2.39996...
 const vec3 k2000 = vec3(255, 137, 14) / 255.0;
 const vec3 k12000 = vec3(191, 211, 255) / 255.0;
 
-#define remap(x,a,b,c,d) ((((x)-(a))/((b)-(a)))*((d)-(c))+(c))
-#define remapc(x,a,b,c,d) clamp(remap(x,a,b,c,d),min(c,d),max(c,d))
 #define saturate(x) clamp(x,0.0,1.0)
-#define opRepLim(p,c,l) ((p)-(c)*clamp(round((p)/(c)),-(l),(l)))
-#define opRepLimID(p,c,l) (clamp(round((p)/(c)),-(l),(l))+(l))
 
 vec2 orbit(float t)
 {
@@ -70,12 +66,6 @@ mat2 rot(float x)
 {
     vec2 v = orbit(x);
     return mat2(v.x, v.y, -v.y, v.x);
-}
-
-bool tl(float intime, float outtime, out float lt)
-{
-    lt = (Time - intime) / (outtime - intime);
-    return (0.0 <= lt && lt < 1.0);
 }
 
 // 
@@ -195,18 +185,6 @@ vec3 Microfacet_BRDF(vec3 albedo, float metallic, float paramRoughness, vec3 L, 
 // ........................
 // 
 // https://mercury.sexy/hg_sdf/
-float i_fOpUnionRound(float a, float b, float r)
-{
-    return min(a, b);
-    // vec2 u = max(vec2(r - a, r - b), vec2(0));
-    // return max(r, min(a, b)) - length(u);
-}
-float i_fOpDifferenceRound(float a, float b, float r)
-{
-    return max(a, -b);
-    // vec2 u = max(vec2(r + a, r - b), vec2(0));
-    // return min(-r, max(a, -b)) + length(u);
-}
 
 float sdBox(vec3 p, vec3 b)
 {
@@ -215,23 +193,18 @@ float sdBox(vec3 p, vec3 b)
 }
 
 
-vec2 opRoomRep(inout vec3 p)
-{
-    vec2 ip = floor(p.xy / vec2(3, 2)) * vec2(3, 2) + vec2(1.5, 1);
-    p.xy -= ip;
-    return ip;
-}
-
+vec2 IP;
 float sdf(vec3 p)
 {
     vec3 op = p;
-    vec2 ip = opRoomRep(p);
-    vec3 h3 = pcg33(vec3(ip, 0));
+    IP = floor(p.xy / vec2(3, 2)) * vec2(3, 2) + vec2(1.5, 1);
+    p.xy -= IP;
+    vec3 h3 = pcg33(vec3(IP, 0));
 
     float td, td2;
     vec3 tp;
 
-    bool isfloorB = fract(0.5 * ip.x / 3.0) < 0.5;
+    bool isfloorB = fract(0.5 * IP.x / 3.0) < 0.5;
     // float isfloor = float(!isfloorB) * 1e9;
     float isroom = float(isfloorB) * 1e9;
 
@@ -259,18 +232,18 @@ float sdf(vec3 p)
     // ベースの壁
     float hd = -p.z - 0.11;
     // 部屋のあな
-    hd = i_fOpDifferenceRound(hd, sdBox(p, vec3(2.8, 1.8, 4)), 0.01);
+    hd = max(hd, -sdBox(p, vec3(2.8, 1.8, 4)));
     // 窓枠
     tp = p;
     tp.z -= 0.75;
     tp.x = abs(abs(tp.x) - 0.4);
-    hd = i_fOpUnionRound(hd, sdBox(tp, vec3(3, 2, 0.05)), 0.01);
-    hd = i_fOpDifferenceRound(hd, sdBox(tp - vec3(0.4, -0.135, 0), vec3(0.7, 1.35, 0.1)), 0.01);
+    hd = min(hd, sdBox(tp, vec3(3, 2, 0.05)));
+    hd = max(hd, -sdBox(tp - vec3(0.4, -0.135, 0), vec3(0.7, 1.35, 0.1)));
     // 腰壁
     hd = min(hd, sdBox(p - vec3(0, -0.5, 0.1), vec3(2.8, 0.6, 0.025)) - 0.01);
     // 腰壁の穴
     tp = p - vec3(0.2 * clamp(round(p.x / 0.2), -6, 6), -0.5, 0.1);
-    hd = i_fOpDifferenceRound(hd, sdBox(tp, vec3(0.1, 0.5, 0.05)), 0.01);
+    hd = max(hd, -sdBox(tp, vec3(0.1, 0.5, 0.05)));
     // 手すり
     hd = min(hd, sdBox(p + vec3(0, 0.225, 0), vec3(2.8, 0.05, 0.2)) - 0.01);
 
@@ -278,7 +251,7 @@ float sdf(vec3 p)
     tp = p - vec3(1.15, -0.76, 0);
     td = sdBox(tp, vec3(0.4, 0.3, 0.15) - 0.02);
     tp = tp - vec3(-0.06, 0, -0.11);
-    td = i_fOpDifferenceRound(td, sdBox(tp, vec3(0, 0, 0.1)) - 0.1, 0.005);
+    td = max(td, -sdBox(tp, vec3(0, 0, 0.1)) + 0.1);
     // 室外機の柵
     tp.z -= 0.05;
     tp.y -= 0.01 * clamp(round(tp.y / 0.01), -9, 9);
@@ -319,8 +292,8 @@ float sdf(vec3 p)
 // ishit,shadow
 vec2 march(vec3 rd, vec3 ro, out vec3 rp)
 {
-    const float w = 0.02;
-    const float minv = 0.05;
+    const float w = 0.01;
+    const float minv = 0.01;
     float v = 1.0, ph = LenMax;
     float dist, len = 0.0;
 
@@ -371,7 +344,7 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
 // ........................................................
 // 
 
-const vec3 DirectionalLight = normalize(vec3(1, 1, -1));
+const vec3 DirectionalLight = normalize(vec3(1, 1.5, -1));
 
 // 
 // .%%...%%...%%%%...%%%%%%..%%..%%.
@@ -463,9 +436,9 @@ void main()
     vec2 tuv = (tN.x * P.zy + tN.y * P.xz + tN.z * P.xy) * vec2(3, 1);
     // identify
     vec3 RP = P;
-    vec2 ip = opRoomRep(RP);
-    bool isfloorB = fract(0.5 * ip.x / 3.0) < 0.5;
-    vec3 hash = pcg33(vec3(ip, 0));
+    RP.xy-=IP;
+    vec3 hash = pcg33(vec3(IP, 0));
+    bool isfloorB = fract(0.5 * IP.x / 3.0) < 0.5;
     // get mat
     float type = MAT_PBR;
     vec3 albedo = vec3(1);
