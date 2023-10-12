@@ -113,14 +113,16 @@ void main()
   const int TENKAI_CHORD_LENGTH_STEP = 16 * 4;
   const int TENKAI_ARP_START_STEP = 0;//64 * 4;
 
-  bool i_tenkaiKickActive = beats.w >= 64.0;
+  bool i_sidechainActive = beats.w >= 64.0;
+  bool i_tenkaiKickActive = (beats.w >= 64.0 && beats.w < 253.0) || (beats.w >= 256.0 && beats.w < 352.0);
   bool i_tenkaiBassActive = beats.w >= 32.0;
   bool i_tenkaiCrashActive = beats.w >= 32.0;
-  bool i_tenkaiHihatActive = (beats.w >= 32.0 && beats.w < 128.0) || beats.w >= 192.0;
-  bool i_tenkaiClapActive = (beats.w >= 64.0 && beats.w < 128.0) || beats.w >= 256.0;
-  bool i_tenkaiPercActive = (beats.w >= 64.0 && beats.w < 128.0) || beats.w >= 192.0;
-  float i_pluckOffset = smoothstep(160.0, 224.0, beats.w);
+  bool i_tenkaiHihatActive = (beats.w >= 32.0 && beats.w < 128.0) || (beats.w >= 192.0 && beats.w < 320.0);
+  bool i_tenkaiClapActive = (beats.w >= 64.0 && beats.w < 128.0) || (beats.w >= 256.0 && beats.w < 320.0);
+  bool i_tenkaiPercActive = (beats.w >= 64.0 && beats.w < 128.0) || (beats.w >= 192.0 && beats.w < 320.0);
+  float i_pluckOffset = smoothstep(160.0, 248.0, beats.w);
   float i_pluckFilterEnv = smoothstep(256.0, 192.0, beats.w);
+  float i_masterAmp = smoothstep(384.0, 352.0, beats.w);
   // -- tenkai end ---------------------------------------------------------------------------------
 
   float t;
@@ -128,18 +130,21 @@ void main()
   int prog = max(0, frame / SAMPLES_PER_STEP - TENKAI_PROG_STEP) / 32 % 4 * 8;
 
   vec2 dest = vec2(0.0);
-  float sidechain = 1.0;
+  float sidechain;
 
-  if(i_tenkaiKickActive)
   { // kick
     t = float(frame % (4 * SAMPLES_PER_STEP)) / SAMPLES_PER_SEC;
     float i_q = 4.0 * STEP2TIME - t;
-    sidechain = 0.2 + 0.8 * smoothstep(0.0, 0.4, t) * smoothstep(0.0, 0.001, i_q);
+    sidechain = i_sidechainActive
+      ? (0.2 + 0.8 * smoothstep(0.0, 0.4, t) * smoothstep(0.0, 0.001, i_q))
+      : 1.0;
 
-    float i_env = smoothstep(0.0, 0.001, i_q) * smoothstep(0.3, 0.1, t);
+    if (i_tenkaiKickActive) {
+      float i_env = smoothstep(0.0, 0.001, i_q) * smoothstep(0.3, 0.1, t);
 
-    float i_wave = sin(270.0 * t - 20.0 * exp(-t * 20.0) - 15.0 * exp(-t * 80.0) - 10.0 * exp(-t * 500.0));
-    dest += 0.6 * tanh(2.0 * i_env * i_wave);
+      float i_wave = sin(270.0 * t - 20.0 * exp(-t * 20.0) - 15.0 * exp(-t * 80.0) - 10.0 * exp(-t * 500.0));
+      dest += 0.6 * tanh(2.0 * i_env * i_wave);
+    }
   }
 
   if(i_tenkaiBassActive)
@@ -148,10 +153,12 @@ void main()
     float i_q = STEP2TIME - t;
 
     float env = smoothstep(0.0, 0.001, t) * smoothstep(0.0, 0.001, i_q);
+    float i_gain = 4.0 * (float(frame % (4 * SAMPLES_PER_STEP)) / SAMPLES_PER_SEC);
 
     {
       float phase = t * i_p2f(30.0 + CHORDS[prog]);
-      dest += 0.4 * sidechain * env * tanh(2.0 * sin(TAU * phase));
+      float i_wave = sin(TAU * phase);
+      dest += 0.4 * sidechain * env * tanh(i_gain * i_wave);
     }
 
     for(int i = 0; i < 8; i++)
@@ -162,7 +169,7 @@ void main()
 
       float i_k = 0.55 - 0.4 * exp(-t * 5.0);
       float i_wave = tanh(3.0 * i_cheapFilterSaw(phase, i_k));
-      dest += 0.1 * sidechain * tanh(2.0 * env * i_wave);
+      dest += 0.1 * sidechain * tanh(i_gain * env * i_wave);
     }
   }
 
@@ -279,5 +286,5 @@ void main()
     }
   }
 
-  waveOutSamples[frame] = dest;
+  waveOutSamples[frame] = i_masterAmp * tanh(dest);
 }
