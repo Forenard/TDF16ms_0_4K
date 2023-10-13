@@ -274,7 +274,7 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp, out vec3 srp)
 {
     // const float w = 0.01;
     const float minv = 0.05;
-    float v = 1.0, ph = LenMax;
+    float v = 1.0;
     float dist, len = 0.0;
     for(int i = 0; i < 256; i++)
     {
@@ -294,7 +294,7 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp, out vec3 srp)
         dist = sdf(rp);
 
         // shadow
-        v = max(min(v, 256 * dist / len), minv);
+        v = max(min(v, exp2(2 + 2 * pcg33(vec3(rp)).x) * dist / len), minv);
 
         // traverse
         vec2 irp = floor(rp.xy / vec2(3, 2) + sign(rd.xy)) * vec2(3, 2) + vec2(1.5, 1);
@@ -416,7 +416,7 @@ void main()
     // triplanar
     vec3 tN = sign(N) * abs(N);
     tN = tN / dot(vec3(1), tN);
-    vec2 tuv = (tN.x * P.zy + tN.y * P.xz + tN.z * P.xy) /vec2(1,4);
+    vec2 tuv = (tN.x * P.zy + tN.y * P.xz + tN.z * P.xy) / vec2(1, 4);
     // identify
     vec3 RP = P;
     RP.xy -= IP;
@@ -454,7 +454,7 @@ void main()
         // Mat:ライト
         type = MAT_UNLIT;
         // for bloom
-        albedo = plcol*2.0;
+        albedo = plcol * 2.0;
     }
     // avoid self-intersection
     const vec3 sn = N * DistMin * 2.0;
@@ -490,9 +490,9 @@ void main()
     // .%%.......%%%%....%%%%.....%%....%%......%%..%%...%%%%....%%%%...%%%%%%...%%%%....%%%%..
     // ........................................................................................
     // 
-    
+
     // Vignette
-    col *= smoothstep(0.8,0.4,length(uv-0.5));
+    col *= smoothstep(0.8, 0.4, length(uv - 0.5));
     // bloom
     col = mix(col, textureLod(backBuffer0, uv, 2).rgb, 0.35);
     // aces
