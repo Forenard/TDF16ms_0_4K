@@ -37,8 +37,6 @@ layout(location = 0) out vec4 outColor0;
 #define NormalEPS 0.001
 #define DistMin 0.001
 
-const float STEP2TIME = 60.0 / 128.0 / 4.0;
-
 float Time;
 int MatID;
 
@@ -53,8 +51,9 @@ int MatID;
 const float PI = acos(-1.0);
 const float TAU = PI * 2.0;
 const float GOLD = PI * (3.0 - sqrt(5.0));// 2.39996...
-const vec3 k2000 = vec3(255, 137, 14) / 255.0;
-const vec3 k12000 = vec3(191, 211, 255) / 255.0;
+const vec3 k2000 = vec3(1, 0.5, 0.1);
+const vec3 k12000 = vec3(0.8, 0.8, 0.9);
+const float STEP2TIME = 60.0 / 128.0 / 4.0;
 
 #define saturate(x) clamp(x,0.0,1.0)
 
@@ -501,7 +500,7 @@ void main()
     // primary shading
     vec3 shaded = vec3(0);
     // directional light
-    shaded += visible * Microfacet_BRDF(albedo, metallic, roughness, DirectionalLight, -rd, N) * k12000 * 0.3;
+    shaded += visible * Microfacet_BRDF(albedo, metallic, roughness, DirectionalLight, -rd, N) * k12000 * 0.5;
     // point light
     vec3 L = (isfloorB ? vec3(-1.4, -0.9, 2.9) : vec3(sign(hash.x - 0.5), -0.06, 0)) - RP;
     float l = length(L);
@@ -530,7 +529,7 @@ void main()
     // noise乗せた方が雰囲気いいかも
     col += h3 * 0.03;
     // 嘘 Gamma Correction
-    col = pow(col, vec3(0.6));
+    col = pow(col, vec3(0.8));
     // aces
     const float a = 2.51;
     const float b = 0.03;
@@ -539,7 +538,7 @@ void main()
     const float e = 0.14;
     col = (col * (a * col + b)) / (col * (c * col + d) + e);
     // カラグレ
-    col.rg = smoothstep(.0, 1., col.rg);
+    // col.rg = smoothstep(-.1, 1., col.rg);
     // トランジション
     col *= min((0.5 - abs(lt - 0.5)) * 10, 1);
     // TAA&MotionBlur
