@@ -181,7 +181,7 @@ void main()
     for(int i = 0; i < 64; i++)
     {
       vec3 dice = pcg33(vec3(i));
-      wave += vec2(sin(t * exp2(2 * dice.x))) * rot(TAU * dice.y) / 64;
+      wave += vec2(sin(t * exp2(2 * dice.x))) * rot(i) / 64;
     }
     dest += 0.2 * sidechain * tanh(2 * env * wave);
   }
@@ -201,7 +201,7 @@ void main()
     for(int i = 0; i < 64; i++)
     {
       vec3 dice = pcg33(vec3(i));
-      wave += vec2(sin(t * exp2(2 * dice.x))) * rot(TAU * dice.y) / 64;
+      wave += vec2(sin(t * exp2(2 * dice.x))) * rot(i) / 64;
     }
     dest += 0.3 * sidechain * tanh(2 * env * wave);
   }
