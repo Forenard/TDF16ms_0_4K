@@ -1,9 +1,9 @@
 
 # Code models
-00:1 80:2 40:1 C0:2 20:1 DA:6 90:3 88:2
+00:1 80:3 40:1 DB:7 20:1 90:3 88:3
 
 # Data models
-00:1 80:2 40:0 C0:3 70:1 A0:1 E0:2 90:0 95:2 D6:4 51:1 F0:3 8B:3 B8:3 C3:3 CC:3 6C:2 2E:1 FD:5 57:2
+00:1 80:2 40:0 C0:3 B8:3 58:1 E0:3 90:0 D7:5 DC:4 B0:2 70:1 CF:5 51:1 66:2 2A:0 8D:3 B3:3
 
 # Code sections
 Crinkler import:.text:_Import
@@ -12,16 +12,16 @@ MAIN.OBJ:.entrypoint:?entrypoint@@YAXXZ
 # Data sections
 DllNames:_DLLNames
 MAIN.OBJ:s_concatenatedString:_g_concatenatedString_align0
-MAIN.OBJ:.s_mmTime:?s_mmTime@@3Ummtime_tag@@A
-MAIN.OBJ:.s_screenSettings:?s_screenSettings@@3U_devicemodeA@@A
-MAIN.OBJ:.s_waveFormat:?s_waveFormat@@3UtWAVEFORMATEX@@A
 MAIN.OBJ:.s_pixelFormatDescriptor:?s_pixelFormatDescriptor@@3PAIA
 MAIN.OBJ:.s_waveHeader:?s_waveHeader@@3Uwavehdr_tag@@A
+MAIN.OBJ:.s_mmTime:?s_mmTime@@3Ummtime_tag@@A
+MAIN.OBJ:.s_waveFormat:?s_waveFormat@@3UtWAVEFORMATEX@@A
+MAIN.OBJ:.s_screenSettings:?s_screenSettings@@3U_devicemodeA@@A
 
 # Uninitialized sections
-MAIN.OBJ:.bss:?s_glExtFunctions@@3PAPAXA
 Crinkler import:constants:.absolut
 ImportListHunk:_ImportList
+MAIN.OBJ:.bss:?s_glExtFunctions@@3PAPAXA
 
 # Hash table size
-314564938
+314567494

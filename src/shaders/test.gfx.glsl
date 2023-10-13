@@ -92,7 +92,7 @@ vec3 fbm32(vec2 p)
     for(int i = 0; i < 6; i++)
     {
         v += a * vec4(perlin32(p), 1);
-        a *= 0.5;
+        a *= 0.8;
         p *= mat2(-1.4747, 1.351, -1.351, -1.4747);
     }
     return v.xyz / v.w;
@@ -284,15 +284,10 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp, out vec3 srp)
         rp.z = (90.0 <= Time && Time < 105.0 ? abs(rp.z) - 2.0 : rp.z);
         // polar
         rp.xz = (105.0 <= Time && Time < 120.0 ? vec2((atan(rp.z, rp.x) + PI) / PI * 24, length(rp.xz) - 8.0) : rp.xz);
-        // ending
-        // rp.z += (120.0 <= Time ?2.0 : 0.0);
-        // rp.xz = (120.0 <= Time ? vec2((atan(rp.z, rp.x) + PI) / TAU * 3 * 16, 12.0 - length(rp.xz)) : rp.xz);
-
         // beat shift
         float bt = Time / STEP2TIME / 32 + 0.125 + floor(rp.x / 6) / 4;
         float sy = floor(bt) - pow(1.0 / (1.0 + fract(bt) * 8), 5.0);
-        rp.y += 4.0 * sy * sign(fract(rp.x / 12) - 0.5) * float(90.0 <= Time && Time < 120.0);
-        // rp.z += cos(dot(vec2(1),floor(rp.xy / vec2(3, 2))+vec2(1.5,1)) + Time) * max(0, (Time - 90.0) / 45.0);
+        rp.y += 4.0 * sy * sign(fract(-rp.x / 12) - 0.5) * float(90.0 <= Time && Time < 120.0);
         rp.z += cos(length(floor(rp.xy / vec2(3, 2)) + vec2(1.5, 1)) + Time) * max(0, (Time - 90.0) / 45.0);
 
         // sdf
@@ -375,10 +370,10 @@ void main()
     // Parameter
     vec3 ro, dir, rd;
     // シーケンス
-    const vec3 ro0[] = vec3[](vec3(0.2, 0.2, 2.2), vec3(0.4, 0.2, 2.0), vec3(-2.2, -1.0, -0.2), vec3(-0.5, -1.8, -0.3), vec3(0, 0, -3), vec3(0, 0, -6), vec3(0), vec3(0), vec3(0, 0, -4));
-    const vec3 ro1[] = vec3[](vec3(0.1, 0.1, 1.5), vec3(0.35, 0.6, 0.4), vec3(-0.1, -1.0, -0.2), vec3(-2.8, -1.8, -0.3), vec3(0, 0, -15), vec3(0, 40, -9), vec3(-70, 0, 0), vec3(0, 70, 0), vec3(0, 0, -25));
-    const vec3 dir0[] = vec3[](vec3(0.5, 1.5, 1), vec3(-0.5, -1, -1), vec3(-1, -0.1, 0.3), vec3(0.8, 0.8, 1), vec3(0, 0, 1), vec3(-0.2, 0.5, 1), vec3(-1, 0.2, 0), vec3(1, 1, 0), vec3(0, 0, 1));
-    const vec3 dir1[] = vec3[](vec3(0.1, 0.1, 1), vec3(0, 0.5, -1), vec3(-1, -0.1, 1), vec3(0.1, 0.8, 1.5), vec3(0, 0, 1), vec3(0.2, 0.5, 1), vec3(-1, -0.2, 0), vec3(0, 1, 0.1), vec3(0, 0, 1));
+    const vec3 ro0[] = vec3[](vec3(0.2, 0.2, 2.2), vec3(0.4, 0.2, 2.0), vec3(-2.2, -1.0, -0.2), vec3(-0.5, -1.8, -0.5), vec3(0, 0, -3), vec3(4, 0, -6), vec3(0), vec3(0), vec3(0, 0, -4));
+    const vec3 ro1[] = vec3[](vec3(0.1, 0.1, 1.5), vec3(0.35, 0.6, 0.4), vec3(-0.1, -1.0, -0.2), vec3(-2.8, -1.8, -0.5), vec3(0, 0, -15), vec3(-4, 40, -9), vec3(-70, 0, 0), vec3(0, 70, 0), vec3(0, 0, -25));
+    const vec3 dir0[] = vec3[](vec3(0.5, 1.5, 1), vec3(-0.5, -1, -1), vec3(-1, -0.1, 0.3), vec3(0.8, 0.8, 1), vec3(0, 0, 1), vec3(-0.3, 0.5, 1), vec3(-1, 0.2, 0), vec3(1, 1, 0), vec3(0, 0, 1));
+    const vec3 dir1[] = vec3[](vec3(0.1, 0.1, 1), vec3(0, 0.5, -1), vec3(-1, -0.1, 1), vec3(0.1, 0.8, 1.5), vec3(0, 0, 1), vec3(0.3, 0.5, 1), vec3(-1, -0.2, 0), vec3(0, 1, 0.1), vec3(0, 0, 1));
     float ft = Time / 15.0;
     int id = int(ft) % 9;
     float lt = fract(ft) * step(ft, 9);
@@ -421,7 +416,7 @@ void main()
     // triplanar
     vec3 tN = sign(N) * abs(N);
     tN = tN / dot(vec3(1), tN);
-    vec2 tuv = (tN.x * P.zy + tN.y * P.xz + tN.z * P.xy) * vec2(3, 1);
+    vec2 tuv = (tN.x * P.zy + tN.y * P.xz + tN.z * P.xy) /vec2(1,4);
     // identify
     vec3 RP = P;
     RP.xy -= IP;
@@ -437,9 +432,9 @@ void main()
     if(MatID == 0)
     {
         // Mat:Concrete
-        vec3 fbm = fbm32(tuv * 3.0);// gravity ydown
-        vec3 fbm2 = fbm32(tuv * 96.0);
-        albedo = vec3(min(1, mix(0.5, 1.0, fbm.y) * mix(0.9, 1.0, pow(fbm2.x, 3.0))));
+        vec3 fbm = fbm32(tuv * 3);
+        vec3 fbm2 = fbm32(tuv * 96);
+        albedo = vec3(min(1, mix(0.5, 1.0, fbm.y) * mix(0.8, 1.0, sqrt(fbm2.x))));
         roughness = albedo.r;
         metallic = 0.01;
         N = normalize(N + (fbm - 0.5) * 0.1);
@@ -458,7 +453,8 @@ void main()
     {
         // Mat:ライト
         type = MAT_UNLIT;
-        albedo = plcol;
+        // for bloom
+        albedo = plcol*2.0;
     }
     // avoid self-intersection
     const vec3 sn = N * DistMin * 2.0;
@@ -479,12 +475,12 @@ void main()
     vec3 lcol = plcol * pow(1.0 / (1.0 + max(0.0, l - 1.0)), 2.0);
     shaded += Microfacet_BRDF(albedo, metallic, roughness, L / l, -rd, N) * lcol;
     // ao
-    shaded *= sqrt(saturate(sdf(P + N * 0.05) / 0.05));
+    shaded *= sqrt(saturate(sdf(P + N * 0.1) / 0.1));
     // unlit
     shaded = mix(shaded, albedo, type);
     // sky
     vec3 sky = vec3(mix(0.01, 0.3, saturate((rd.y + 0.5) * 0.5))) * smoothstep(1.0, 0.9, rd.y);
-    vec3 col = mix(sky, shaded, hit.x);
+    vec3 col = max(vec3(0), mix(sky, shaded, hit.x));
 
     // 
     // .%%%%%....%%%%....%%%%...%%%%%%..%%%%%...%%%%%....%%%%....%%%%...%%%%%%...%%%%....%%%%..
@@ -494,10 +490,11 @@ void main()
     // .%%.......%%%%....%%%%.....%%....%%......%%..%%...%%%%....%%%%...%%%%%%...%%%%....%%%%..
     // ........................................................................................
     // 
-    // noise乗せた方が雰囲気いいかも
-    col += h3 * 0.03;
-    // 嘘 Gamma Correction
-    col = pow(col, vec3(0.8));
+    
+    // Vignette
+    col *= smoothstep(0.8,0.4,length(uv-0.5));
+    // bloom
+    col = mix(col, textureLod(backBuffer0, uv, 2).rgb, 0.35);
     // aces
     const float a = 2.51;
     const float b = 0.03;
@@ -505,13 +502,13 @@ void main()
     const float d = 0.59;
     const float e = 0.14;
     col = (col * (a * col + b)) / (col * (c * col + d) + e);
+    // noise乗せた方が雰囲気いいかも 高周波的な
+    col += h3 * 0.03;
+    // 嘘 Gamma Correction
+    col = pow(col, vec3(0.9));
     // カラグレ
     // col.rg = smoothstep(-.1, 1., col.rg);
     // トランジション
     col *= min((0.5 - abs(lt - 0.5)) * 10, 1);
-    // TAA&MotionBlur&Bloom
-    vec4 now = vec4(col, 1);
-    const float ema = 0.5;
-    vec4 back = textureLod(backBuffer0, uv, 2.0);
-    outColor0 = mix(now, back, ema);
+    outColor0 = vec4(col, 1);
 }
