@@ -108,21 +108,21 @@ void main()
   // return float( max( 0, frame + SAMPLES_PER_STEP * offset ) % ( SAMPLES_PER_STEP * every ) ) / SAMPLES_PER_SEC;
 
   // -- tenkai -------------------------------------------------------------------------------------
-  const int TENKAI_PROG_STEP = 128 * 4;
-  const int TENKAI_CHORD_START_STEP = 128 * 4;
+  const int TENKAI_PROG_STEP = 64 * 4;
+  const int TENKAI_CHORD_START_STEP = 64 * 4;
   const int TENKAI_CHORD_LENGTH_STEP = 16 * 4;
   const int TENKAI_ARP_START_STEP = 0;//64 * 4;
 
   bool i_sidechainActive = beats.w >= 64.0;
-  bool i_tenkaiKickActive = (beats.w >= 64.0 && beats.w < 253.0) || (beats.w >= 256.0 && beats.w < 352.0);
+  bool i_tenkaiKickActive = (beats.w >= 64.0 && beats.w < 189.0) || beats.w >= 192.0;
   bool i_tenkaiBassActive = beats.w >= 32.0;
-  bool i_tenkaiCrashActive = beats.w >= 32.0;
-  bool i_tenkaiHihatActive = (beats.w >= 32.0 && beats.w < 128.0) || (beats.w >= 192.0 && beats.w < 320.0);
-  bool i_tenkaiClapActive = (beats.w >= 64.0 && beats.w < 128.0) || (beats.w >= 256.0 && beats.w < 320.0);
-  bool i_tenkaiPercActive = (beats.w >= 64.0 && beats.w < 128.0) || (beats.w >= 192.0 && beats.w < 320.0);
-  float i_pluckOffset = smoothstep(160.0, 248.0, beats.w);
-  float i_pluckFilterEnv = smoothstep(256.0, 192.0, beats.w);
-  float i_masterAmp = smoothstep(384.0, 352.0, beats.w);
+  bool i_tenkaiCrashActive = beats.w >= 64.0;
+  bool i_tenkaiHihatActive = (beats.w >= 32.0 && beats.w < 64.0) || (beats.w >= 128.0 && beats.w < 256.0);
+  bool i_tenkaiClapActive = beats.w >= 192.0 && beats.w < 256.0;
+  bool i_tenkaiPercActive = beats.w >= 128.0 && beats.w < 256.0;
+  float i_pluckOffset = smoothstep(96.0, 176.0, beats.w);
+  float i_pluckFilterEnv = smoothstep(192.0, 128.0, beats.w);
+  float i_masterAmp = smoothstep(256.0 + 32.0, 256.0, beats.w);
   // -- tenkai end ---------------------------------------------------------------------------------
 
   float t;
