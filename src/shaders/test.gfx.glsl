@@ -71,7 +71,7 @@ vec3 pcg33(vec3 v)
     x = ((x >> 8U) ^ x.yzx) * k;
     x = ((x >> 8U) ^ x.yzx) * k;
     x = ((x >> 8U) ^ x.yzx) * k;
-    return vec3(x) / float(-1u);
+    return vec3(x) / -1u;
 }
 vec3 perlin32(vec2 p)
 {
