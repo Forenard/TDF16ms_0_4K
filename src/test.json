@@ -2,8 +2,8 @@
 	"app":	{
 		"graphicsShaderFileName":	".\\shaders\\test.gfx.glsl",
 		"soundShaderFileName":	".\\shaders\\test.snd.glsl",
-		"xReso":	1920,
-		"yReso":	989
+		"xReso":	958,
+		"yReso":	980
 	},
 	"camera":	{
 		"vec3Pos":	[0, 0, 0],
@@ -21,13 +21,13 @@
 		"reso":	512
 	},
 	"renderSettings":	{
-		"pixelFormat":	0,
+		"pixelFormat":	2,
 		"enableMultipleRenderTargets":	true,
 		"numEnabledRenderTargets":	2,
 		"enableBackBuffer":	true,
-		"enableMipmapGeneration":	false,
+		"enableMipmapGeneration":	true,
 		"textureFilter":	1,
-		"textureWrap":	0,
+		"textureWrap":	1,
 		"enableSwapIntervalControl":	true,
 		"swapInterval":	2
 	},
