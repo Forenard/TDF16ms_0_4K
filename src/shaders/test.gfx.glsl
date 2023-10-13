@@ -273,7 +273,7 @@ float sdf(vec3 p)
 vec2 march(vec3 rd, vec3 ro, out vec3 rp, out vec3 srp)
 {
     // const float w = 0.01;
-    const float minv = 0.05;
+    const float minv = 0.2;
     float v = 1.0;
     float dist, len = 0.0;
     for(int i = 0; i < 256; i++)
@@ -356,7 +356,7 @@ void main()
     const vec2 uv = fc / res;
     // TAA
     const vec3 h3 = pcg33(vec3(fc, Time));
-    const vec2 suv = (uv - 0.5 + ((h3.xy - 0.5) * 0.25 / res)) * 2.0 * asp;
+    const vec2 suv = (uv - 0.5 + ((h3.xy - 0.25) * 0.5 / res)) * 2.0 * asp;
     // const vec2 suv = (uv - 0.5) * 2.0 * asp;
 
     // 
@@ -468,6 +468,7 @@ void main()
     // primary shading
     vec3 shaded = vec3(0);
     // directional light
+    roughness = (90.0 < Time && Time <= 120.0 ? 0.99 : roughness);
     shaded += visible * Microfacet_BRDF(albedo, metallic, roughness, DirectionalLight, -rd, N) * k12000;
     // point light
     vec3 L = (isfloorB ? vec3(-1.4, -0.9, 2.9) : vec3(sign(hash.x - 0.5), -0.06, 0)) - RP;
@@ -494,7 +495,7 @@ void main()
     // Vignette
     col *= smoothstep(0.8, 0.4, length(uv - 0.5));
     // bloom
-    col = mix(col, textureLod(backBuffer0, uv, 2).rgb, 0.35);
+    col = mix(col, textureLod(backBuffer0, uv, 2).rgb, 0.4);
     // aces
     const float a = 2.51;
     const float b = 0.03;
