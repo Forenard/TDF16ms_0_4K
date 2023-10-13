@@ -262,10 +262,9 @@ float sdf(vec3 p)
     float shimaru = smoothstep(0.0, 2.0, 1.0 - p.y);
     vec3 kp = p;
     kp.x *= mix(1.2, 1.0, shimaru);
-    // float shf = h3.x * TAU;
     float lt = Time + h3.x * TAU;
-    float kz = cos(kp.x * PI * 8.0 + cos(kp.x * 8.0)) * 0.05 + sin(kp.x * 4.0 + lt + 0.5 * cos(lt)) * 0.05;
-    kp.z -= 1.0 + kz * shimaru;
+    float kz = cos(kp.x * 25.0 + cos(kp.x * 8.0)) + cos(kp.x * 4.0 + lt + 0.5 * cos(lt));
+    kp.z -= 1.0 + 0.05 * kz * shimaru;
     td = sdBox(kp, vec3(2.6, 1.6, 0.01)) * 0.5 - 0.01;
     // 部屋限定
     td += isroom;
@@ -300,26 +299,27 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
         // abs z
         rp.z = (90.0 <= Time && Time < 105.0 ? abs(rp.z) - 2.0 : rp.z);
         // polar
-        rp.xz = (105.0 <= Time && Time < 120.0 ? vec2((atan(rp.z, rp.x) + PI) / TAU * 3 * 16, length(rp.xz) - 4.0) : rp.xz);
+        rp.xz = (105.0 <= Time && Time < 120.0 ? vec2((atan(rp.z, rp.x) + PI) / TAU * 3 * 16, length(rp.xz) - 8.0) : rp.xz);
+        // ending
+        // rp.z += (120.0 <= Time ?2.0 : 0.0);
+        // rp.xz = (120.0 <= Time ? vec2((atan(rp.z, rp.x) + PI) / TAU * 3 * 16, 12.0 - length(rp.xz)) : rp.xz);
+
         // beat shift
         float bt = Time / STEP2TIME / 32 + 0.125 + floor(rp.x / 6) / 4;
         float sy = floor(bt) - pow(1.0 / (1.0 + fract(bt) * 8), 5.0);
-        rp.y += 4.0 * sy * sign(fract(rp.x / 12) - 0.5) * step(90.0, Time);
+        rp.y += 4.0 * sy * sign(fract(rp.x / 12) - 0.5) * float(90.0 <= Time && Time < 120.0);
+        rp.z += cos(length(floor(rp.xy / vec2(3, 2))) + Time) * max(0, (Time - 90.0) / 45.0);
 
         // sdf
         dist = sdf(rp);
 
         // shadow
-        // float y = dist * dist / (2.0 * ph);
-        // float d = sqrt(dist * dist - y * y);
-        // v = min(v, d / (w * max(0.0, len - y)));
-        // ph = dist;
         v = max(min(v, 256 * dist / len), minv);
 
         // traverse
         vec2 irp = floor(rp.xy / vec2(3, 2) + sign(rd.xy)) * vec2(3, 2) + vec2(1.5, 1);
         vec2 bd = abs(irp - rp.xy) - vec2(1.5, 1);
-        bd = max(bd, 0.0) / abs(rd.xy) + DistMin + step(rp.z, -3.0) * LenMax;
+        bd = max(bd, 0.0) / abs(rd.xy) + DistMin + step(rp.z, -9.0) * LenMax;
         float td = min(bd.x, bd.y);
 
         // sdf
@@ -347,7 +347,7 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
 // ........................................................
 // 
 
-const vec3 DirectionalLight = normalize(vec3(1, 1.5, -1));
+const vec3 DirectionalLight = normalize(vec3(1.5, 1.5, -1));
 
 // 
 // .%%...%%...%%%%...%%%%%%..%%..%%.
@@ -370,7 +370,7 @@ void main()
     // 
     // Set Time
     Time = time;
-    // Time = 90.0 + time;
+    // Time = time + 90.0;
     // Get UVs
     const vec2 fc = gl_FragCoord.xy, res = resolution.xy, asp = res / min(res.x, res.y);
     const vec2 uv = fc / res;
@@ -390,8 +390,8 @@ void main()
     // Parameter
     vec3 ro, dir, rd;
     // シーケンス
-    const vec3 ro0[] = vec3[](vec3(0.2, 0.2, 2.2), vec3(0.4, 0.2, 2.0), vec3(-2.2, -1.0, -0.2), vec3(-0.5, -1.8, -0.3), vec3(0, 0, -3), vec3(0, 0, -6), vec3(0), vec3(0), vec3(0, 0, -3));
-    const vec3 ro1[] = vec3[](vec3(0.1, 0.1, 1.5), vec3(0.35, 0.6, 0.4), vec3(-0.1, -1.0, -0.2), vec3(-2.8, -1.8, -0.3), vec3(0, 0, -15), vec3(0, 40, -9), vec3(-70, 0, 0), vec3(0, 70, 0), vec3(0, 0, -20));
+    const vec3 ro0[] = vec3[](vec3(0.2, 0.2, 2.2), vec3(0.4, 0.2, 2.0), vec3(-2.2, -1.0, -0.2), vec3(-0.5, -1.8, -0.3), vec3(0, 0, -3), vec3(0, 0, -6), vec3(0), vec3(0), vec3(0, 0, -4));
+    const vec3 ro1[] = vec3[](vec3(0.1, 0.1, 1.5), vec3(0.35, 0.6, 0.4), vec3(-0.1, -1.0, -0.2), vec3(-2.8, -1.8, -0.3), vec3(0, 0, -15), vec3(0, 40, -9), vec3(-70, 0, 0), vec3(0, 70, 0), vec3(0, 0, -25));
     const vec3 dir0[] = vec3[](vec3(0.5, 1.5, 1), vec3(-0.5, -1, -1), vec3(-1, -0.1, 0.3), vec3(0.8, 0.8, 1), vec3(0, 0, 1), vec3(-0.2, 0.5, 1), vec3(-1, 0.2, 0), vec3(1, 1, 0), vec3(0, 0, 1));
     const vec3 dir1[] = vec3[](vec3(0.1, 0.1, 1), vec3(0, 0.5, -1), vec3(-1, -0.1, 1), vec3(0.1, 0.8, 1.5), vec3(0, 0, 1), vec3(0.2, 0.5, 1), vec3(-1, -0.2, 0), vec3(0, 1, 0.1), vec3(0, 0, 1));
     float ft = Time / 15.0;
@@ -405,9 +405,7 @@ void main()
     // ro += tebure;
     // rdを計算
     const vec3 B = normalize(cross(vec3(0, 1, 0), dir));
-    const mat3 bnt = mat3(B, normalize(cross(dir, B)), dir);
-    const float fov = 75.0;
-    rd = normalize(mat3(B, normalize(cross(dir, B)), dir) * vec3(suv, 1.0 / tan(fov * PI / 360.0)));
+    rd = normalize(mat3(B, normalize(cross(dir, B)), dir) * vec3(suv, 1.0 / tan(70.0 * PI / 360.0)));
 
     // 
     // .%%%%%....%%%%...%%..%%..........%%%%%%..%%%%%....%%%%....%%%%...%%%%%%.
