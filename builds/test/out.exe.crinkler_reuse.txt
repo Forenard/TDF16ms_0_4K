@@ -1,9 +1,9 @@
 
 # Code models
-00:1 80:2 40:1 C0:2 20:1 90:3 88:2 98:5 71:3
+00:1 80:3 40:0 C0:2 20:1 60:2 90:3 08:0 F5:7
 
 # Data models
-00:1 80:2 40:0 C0:3 B0:2 A0:0 E0:2 70:1 58:1 D0:2 6C:2 2A:0 AA:3 9C:3 F8:4 57:2 87:3 D7:5 CB:4
+00:1 80:2 40:0 C0:3 B8:3 A0:1 E0:2 2A:0 48:0 8B:3 70:1 F0:3 D3:4 96:3 CC:4 67:3 56:2 FD:5
 
 # Code sections
 Crinkler import:.text:_Import
@@ -19,9 +19,9 @@ MAIN.OBJ:.s_waveFormat:?s_waveFormat@@3UtWAVEFORMATEX@@A
 MAIN.OBJ:s_concatenatedString:_g_concatenatedString_align0
 
 # Uninitialized sections
-ImportListHunk:_ImportList
 Crinkler import:constants:.absolut
 MAIN.OBJ:.bss:?s_glExtFunctions@@3PAPAXA
+ImportListHunk:_ImportList
 
 # Hash table size
-314571578
+314565014
