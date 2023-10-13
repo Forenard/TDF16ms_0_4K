@@ -93,7 +93,7 @@ vec3 fbm32(vec2 p)
     {
         v += a * vec4(perlin32(p), 1);
         a *= 0.5;
-        p *= mat2(-1.4747,1.351,-1.351,-1.4747);
+        p *= mat2(-1.4747, 1.351, -1.351, -1.4747);
     }
     return v.xyz / v.w;
 }
@@ -246,7 +246,7 @@ float sdf(vec3 p)
     float shimaru = smoothstep(0.0, 2.0, 1.0 - p.y);
     vec3 kp = p;
     kp.x *= mix(1.2, 1.0, shimaru);
-    float lt = Time + h3.x * PI*2.0;
+    float lt = Time + h3.x * PI * 2.0;
     float kz = cos(kp.x * 25.0 + cos(kp.x * 8.0)) + cos(kp.x * 4.0 + lt + 0.5 * cos(lt));
     kp.z -= 1.0 + 0.05 * kz * shimaru;
     td = sdBox(kp, vec3(2.6, 1.6, 0.01)) * 0.5 - 0.01;
@@ -270,7 +270,7 @@ float sdf(vec3 p)
 }
 
 // ishit,shadow
-vec2 march(vec3 rd, vec3 ro, out vec3 rp)
+vec2 march(vec3 rd, vec3 ro, out vec3 rp, out vec3 srp)
 {
     // const float w = 0.01;
     const float minv = 0.05;
@@ -278,7 +278,7 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
     float dist, len = 0.0;
     for(int i = 0; i < 256; i++)
     {
-        rp = ro + rd * len;
+        srp = rp = ro + rd * len;
 
         // abs z
         rp.z = (90.0 <= Time && Time < 105.0 ? abs(rp.z) - 2.0 : rp.z);
@@ -292,7 +292,8 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
         float bt = Time / STEP2TIME / 32 + 0.125 + floor(rp.x / 6) / 4;
         float sy = floor(bt) - pow(1.0 / (1.0 + fract(bt) * 8), 5.0);
         rp.y += 4.0 * sy * sign(fract(rp.x / 12) - 0.5) * float(90.0 <= Time && Time < 120.0);
-        rp.z += cos(length(floor(rp.xy / vec2(3, 2))+vec2(1.5,1)) + Time) * max(0, (Time - 90.0) / 45.0);
+        // rp.z += cos(dot(vec2(1),floor(rp.xy / vec2(3, 2))+vec2(1.5,1)) + Time) * max(0, (Time - 90.0) / 45.0);
+        rp.z += cos(length(floor(rp.xy / vec2(3, 2)) + vec2(1.5, 1)) + Time) * max(0, (Time - 90.0) / 45.0);
 
         // sdf
         dist = sdf(rp);
@@ -303,7 +304,7 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
         // traverse
         vec2 irp = floor(rp.xy / vec2(3, 2) + sign(rd.xy)) * vec2(3, 2) + vec2(1.5, 1);
         vec2 bd = abs(irp - rp.xy) - vec2(1.5, 1);
-        bd = max(bd, 0.0) / abs(rd.xy) + DistMin + step(rp.z, -9.0) * LenMax;
+        bd = max(bd, 0.0) / abs(rd.xy) + DistMin + step(rp.z, -30) * LenMax;
         float td = min(bd.x, bd.y);
 
         // sdf
@@ -354,6 +355,7 @@ void main()
     // 
     // Set Time
     Time = time;
+    // Time = time + 120.0;
     // Get UVs
     const vec2 fc = gl_FragCoord.xy, res = resolution.xy, asp = res / min(res.x, res.y);
     const vec2 uv = fc / res;
@@ -399,8 +401,8 @@ void main()
     // ........................................................................
     // 
     // Trace
-    vec3 P;
-    vec2 hit = march(rd, ro, P);
+    vec3 P, SRP;
+    vec2 hit = march(rd, ro, P, SRP);
     // get normal
     float h = NormalEPS;
     vec2 k = vec2(1, -1);
@@ -459,10 +461,12 @@ void main()
         albedo = plcol;
     }
     // avoid self-intersection
-    P += N * DistMin * 2.0;
+    const vec3 sn = N * DistMin * 2.0;
+    P += sn;
+    SRP += sn;
     // directional shadow
-    vec3 _rp;
-    vec2 sh = march(DirectionalLight, P, _rp);
+    vec3 _a, _b;
+    vec2 sh = march(DirectionalLight, SRP, _a, _b);
     float visible = sh.y;
     // float visible = 1.0;
     // primary shading
