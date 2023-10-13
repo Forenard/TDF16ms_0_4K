@@ -36,7 +36,8 @@ layout(location = 0) out vec4 outColor0;
 #define LenMax 100.0
 #define NormalEPS 0.001
 #define DistMin 0.001
-// #define DistMin 0.005
+
+const float STEP2TIME = 60.0 / 128.0 / 4.0;
 
 float Time;
 int MatID;
@@ -192,27 +193,24 @@ float sdBox(vec3 p, vec3 b)
     return min(max(d.x, max(d.y, d.z)), 0.0) + length(max(d, 0.0));
 }
 
-
 vec2 IP;
 float sdf(vec3 p)
 {
-    vec3 op = p;
     IP = floor(p.xy / vec2(3, 2)) * vec2(3, 2) + vec2(1.5, 1);
+    vec3 op = p;
     p.xy -= IP;
-    vec3 h3 = pcg33(vec3(IP, 0));
+    vec3 h3 = pcg33(vec3(IP, 1));
 
     float td, td2;
     vec3 tp;
 
     bool isfloorB = fract(0.5 * IP.x / 3.0) < 0.5;
-    // float isfloor = float(!isfloorB) * 1e9;
     float isroom = float(isfloorB) * 1e9;
 
     // かいだん
     // みぞ
-    const float w = 0.05;
     tp = abs(fract(op * 10) - 0.5);
-    float mizo = dot(vec3(2), smoothstep(w, w * 0.5, tp)) / 3 * 0.001;
+    float mizo = min(dot(vec3(1), smoothstep(0.02, 0.0, tp)), 1) * 0.001;
     // かいだん
     // #define linearstep(a, b, x) min(max((p.x+1) / ((b) - (a)), 0.0), 1.0)
     float fy = p.y - saturate((p.x + 1) * 0.5) * 2 - 0.5;
@@ -296,7 +294,6 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
     const float minv = 0.01;
     float v = 1.0, ph = LenMax;
     float dist, len = 0.0;
-
     for(int i = 0; i < LoopMax; i++)
     {
         rp = ro + rd * len;
@@ -304,7 +301,21 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
         // abs z
         rp.z = (90.0 <= Time && Time < 105.0 ? abs(rp.z) - 2.0 : rp.z);
         // polar
-        rp.xz = (105.0 <= Time && Time < 120.0 ? vec2((atan(rp.z, rp.x) + PI) / TAU * 24, length(rp.xz) - 4.0) : rp.xz);
+        rp.xz = (105.0 <= Time && Time < 120.0 ? vec2((atan(rp.z, rp.x) + PI) / TAU * 3 * 16, length(rp.xz) - 4.0) : rp.xz);
+        // beat shift
+        // float bt = Time / STEP2TIME / 8;
+        // const float span = 4.0;
+        // float sy = floor(bt / span) + smoothstep(0.0,1.0,pow(min(1, mod(bt, span)), 0.3));
+        // bt += span * 0.5;
+        // float sx = floor(bt / span) + smoothstep(0.0,1.0,pow(min(1, mod(bt, span)), 0.3));
+        // rp.y += 2.0 * sy * sign(fract(rp.x / 6) - 0.5);
+        // rp.x += 3.0 * sx * sign(fract(rp.y / 4) - 0.5);
+
+        const float span = 4.0;
+        float bt = time / STEP2TIME / 4 + floor(rp.x / 6);
+        float sy = floor(bt / span) - pow(1.0 / (1.0 + mod(bt, span)), 5.0);
+        rp.y += 3.0 * sy * sign(fract(rp.x / 12) - 0.5) * step(75.0, Time);
+        // rp.y += 2.0 * time;
 
         // sdf
         dist = sdf(rp);
@@ -318,9 +329,11 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
         // traverse
         vec2 irp = floor(rp.xy / vec2(3, 2) + sign(rd.xy)) * vec2(3, 2) + vec2(1.5, 1);
         vec2 bd = abs(irp - rp.xy) - vec2(1.5, 1);
-        bd = max(bd, 0.0) / abs(rd.xy) + DistMin + float(rp.z < -2.0) * LenMax;
-        dist = min(dist, min(bd.x, bd.y));
+        bd = max(bd, 0.0) / abs(rd.xy) + DistMin + step(rp.z, -3.0) * LenMax;
+        float td = min(bd.x, bd.y);
 
+        // sdf
+        dist = min(td, dist);
         len += dist;
         if(dist < DistMin)
         {
@@ -332,7 +345,7 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp)
         }
     }
     // トラバーサルのせいでlenがLenMaxを越えないことがある
-    return vec2(0, max(v, minv));
+    return vec2(1, max(v, minv));
 }
 
 // 
@@ -366,14 +379,17 @@ void main()
     // ........................................................
     // 
     // Set Time
+    // const float bar = 120.0/32.0;
+    // Time = (floor(time/bar)+pow(fract(time/bar),0.5))*bar;
     Time = time;
-    // Time = mix(38.0,42.0,fract(time/4.0));
+    // Time = 75.0 + time;
     // Get UVs
     const vec2 fc = gl_FragCoord.xy, res = resolution.xy, asp = res / min(res.x, res.y);
     const vec2 uv = fc / res;
     // TAA
     const vec3 h3 = pcg33(vec3(fc, Time));
     const vec2 suv = (uv - 0.5 + ((h3.xy - 0.5) * 0.25 / res)) * 2.0 * asp;
+    // const vec2 suv = (uv - 0.5) * 2.0 * asp;
 
     // 
     // ..%%%%....%%%%...%%...%%..%%%%%%..%%%%%....%%%%..
@@ -388,11 +404,11 @@ void main()
     // シーケンス
     const vec3 ro0[] = vec3[](vec3(0.2, 0.2, 2.2), vec3(0.4, 0.2, 2.0), vec3(-2.2, -1.0, 0), vec3(-0.5, -1.8, -0.3), vec3(0, 0, -3), vec3(0, 0, -6), vec3(0), vec3(0));
     const vec3 ro1[] = vec3[](vec3(0.1, 0.1, 1.5), vec3(0.35, 0.6, 0.4), vec3(-0.1, -1.0, 0), vec3(-2.8, -1.8, -0.3), vec3(0, 0, -15), vec3(0, 30, -9), vec3(-70, 0, 0), vec3(0, 70, 0));
-    const vec3 dir0[] = vec3[](vec3(0.5, 1.5, 1), vec3(-0.5, -1, -1), vec3(-1, -0.1, 0.3), vec3(1, 0.2, 0.8), vec3(0, 0, 1), vec3(-0.2, 0, 1), vec3(-1, 0.2, 0), vec3(1, 1, 0));
-    const vec3 dir1[] = vec3[](vec3(0.1, 0.1, 1), vec3(0, 0, -1), vec3(-1, -0.1, 1), vec3(1, 0.2, 0.8), vec3(0, 0, 1), vec3(0.2, 0, 1), vec3(-1, -0.2, 0), vec3(0, 1, 0.1));
+    const vec3 dir0[] = vec3[](vec3(0.5, 1.5, 1), vec3(-0.5, -1, -1), vec3(-1, -0.1, 0.3), vec3(0.8, 0.2, 1), vec3(0, 0, 1), vec3(-0.2, 0, 1), vec3(-1, 0.2, 0), vec3(1, 1, 0));
+    const vec3 dir1[] = vec3[](vec3(0.1, 0.1, 1), vec3(0, 0, -1), vec3(-1, -0.1, 1), vec3(0.8, 0.2, 1.5), vec3(0, 0, 1), vec3(0.2, 0, 1), vec3(-1, -0.2, 0), vec3(0, 1, 0.1));
     float ft = Time / 15.0;
     int id = int(ft) % 8;
-    float lt = fract(ft);
+    float lt = fract(ft) * step(ft, 8);
     float mx = (id == 4 ? (floor(lt * 4.0) + lt) * 0.25 : lt);
     ro = mix(ro0[id], ro1[id], mx);
     dir = normalize(mix(dir0[id], dir1[id], mx));
@@ -416,6 +432,8 @@ void main()
     // Trace
     vec3 P;
     vec2 hit = march(rd, ro, P);
+    // float depth = min(length(P - ro),LenMax);
+    // get normal
     float h = NormalEPS;
     vec2 k = vec2(1, -1);
     int mid = MatID;
@@ -436,8 +454,8 @@ void main()
     vec2 tuv = (tN.x * P.zy + tN.y * P.xz + tN.z * P.xy) * vec2(3, 1);
     // identify
     vec3 RP = P;
-    RP.xy-=IP;
-    vec3 hash = pcg33(vec3(IP, 0));
+    RP.xy -= IP;
+    vec3 hash = pcg33(vec3(IP, 1));
     bool isfloorB = fract(0.5 * IP.x / 3.0) < 0.5;
     // get mat
     float type = MAT_PBR;
@@ -451,10 +469,11 @@ void main()
         // Mat:Concrete
         vec3 fbm = fbm32(tuv * 3.0);// gravity ydown
         vec3 fbm2 = fbm32(tuv * 96.0);
-        albedo = vec3(saturate(1.3 * mix(0.6, 1.0, fbm.y) * mix(0.8, 1.0, pow(fbm2.x, 3.0))));
-        roughness = mix(0.5, 1.0, pow(fbm.y, 3.0));
+        albedo = vec3(min(1.3 * mix(0.5, 1.0, fbm.y) * mix(0.9, 1.0, pow(fbm2.x, 3.0)), 1));
+        // roughness = mix(0.5, 1.0, pow(fbm.y, 3.0));
+        roughness = albedo.r * 0.5;
         metallic = 0.01;
-        N = normalize(N + (fbm * 2.0 - 1.0) * 0.05);
+        N = normalize(N + (fbm - 0.5) * 0.1);
     }
     else if(MatID == 1)
     {
@@ -473,15 +492,16 @@ void main()
         albedo = plcol;
     }
     // avoid self-intersection
-    P += N * DistMin * 1.5;
+    P += N * DistMin * 2.0;
     // directional shadow
     vec3 _rp;
     vec2 sh = march(DirectionalLight, P, _rp);
     float visible = sh.y;
+    // float visible = 1.0;
     // primary shading
     vec3 shaded = vec3(0);
     // directional light
-    shaded += visible * Microfacet_BRDF(albedo, metallic, roughness, DirectionalLight, -rd, N) * k12000 * 0.5;
+    shaded += visible * Microfacet_BRDF(albedo, metallic, roughness, DirectionalLight, -rd, N) * k12000 * 0.3;
     // point light
     vec3 L = (isfloorB ? vec3(-1.4, -0.9, 2.9) : vec3(sign(hash.x - 0.5), -0.06, 0)) - RP;
     float l = length(L);
@@ -503,6 +523,10 @@ void main()
     // .%%.......%%%%....%%%%.....%%....%%......%%..%%...%%%%....%%%%...%%%%%%...%%%%....%%%%..
     // ........................................................................................
     // 
+    // 拍 t*128/60
+    // float bt = fract(Time*32/60);
+    // col += min(1,dot(vec3(1),abs(fwidth(N))))*smoothstep(0.5,0.0,abs(fract(length(P-ro)-Time)));
+
     // noise乗せた方が雰囲気いいかも
     col += h3 * 0.03;
     // 嘘 Gamma Correction
@@ -517,9 +541,9 @@ void main()
     // カラグレ
     col.rg = smoothstep(.0, 1., col.rg);
     // トランジション
-    col *= saturate((0.5 - abs(lt - 0.5)) * 10.0);
+    col *= min((0.5 - abs(lt - 0.5)) * 10, 1);
     // TAA&MotionBlur
-    const float ema = 0.5;
+    const float ema = 0.7;
     vec4 now = vec4(col, 1.0);
     vec4 back = texture(backBuffer0, uv);
     outColor0 = mix(now, back, ema);
