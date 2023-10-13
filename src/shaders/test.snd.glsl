@@ -103,21 +103,22 @@ void main()
   float bars = frame / SAMPLES_PER_SEC / 16 / STEP2TIME;
 
   // -- tenkai -------------------------------------------------------------------------------------
-  const int TENKAI_PROG_STEP = 64 * 4;
-  const int TENKAI_CHORD_START_STEP = 64 * 4;
-  const int TENKAI_CHORD_LENGTH_STEP = 16 * 4;
-  const int TENKAI_ARP_START_STEP = 0;//64 * 4;
+  const int TENKAI_PROG_STEP = 16 * 16;
+  const int TENKAI_CHORD_START_STEP = 16 * 16;
+  const int TENKAI_CHORD_LENGTH_STEP = 4 * 16;
+  const int TENKAI_ARP_START_STEP = 0;
 
   bool i_sidechainActive = bars >= 16;
   bool i_tenkaiKickActive = (bars >= 16 && bars < 47.25) || bars >= 48;
   bool i_tenkaiBassActive = bars >= 8;
   bool i_tenkaiCrashActive = bars >= 16;
-  bool i_tenkaiHihatActive = (bars >= 8 && bars < 16) || (bars >= 32 && bars < 64);
-  bool i_tenkaiClapActive = bars >= 48 && bars < 64;
-  bool i_tenkaiPercActive = bars >= 32 && bars < 64;
+  bool i_tenkaiCrashEvery8Bars = bars >= 64;
+  bool i_tenkaiHihatActive = (bars >= 8 && bars < 16) || (bars >= 32 && bars < 72);
+  bool i_tenkaiClapActive = bars >= 48 && bars < 72;
+  bool i_tenkaiPercActive = bars >= 32 && bars < 72;
   float i_pluckOffset = smoothstep(34, 44, bars);
   float i_pluckFilterEnv = smoothstep(48, 32, bars);
-  float i_masterAmp = smoothstep(64 + 8, 64, bars);
+  float i_masterAmp = smoothstep(72 + 8, 72, bars);
   // -- tenkai end ---------------------------------------------------------------------------------
 
   float t;
@@ -170,7 +171,7 @@ void main()
 
   if(i_tenkaiCrashActive)
   { // crash
-    t = time.w;
+    t = i_tenkaiCrashEvery8Bars ? mod(time.w, 8 * 16 * STEP2TIME) : time.w;
 
     float env = exp(-t * 10) + exp(-t); // don't inline me!
 
