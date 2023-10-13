@@ -2,8 +2,8 @@
 	"app":	{
 		"graphicsShaderFileName":	".\\shaders\\test.gfx.glsl",
 		"soundShaderFileName":	".\\shaders\\test.snd.glsl",
-		"xReso":	1280,
-		"yReso":	720
+		"xReso":	1920,
+		"yReso":	989
 	},
 	"camera":	{
 		"vec3Pos":	[0, 0, 0],
@@ -36,9 +36,9 @@
 		"enableAutoRestartBySoundShader":	true
 	},
 	"executableExportSettings":	{
-		"fileName":	"..\\..\\minimal_gl\\x64\\Release\\heck.exe",
-		"xReso":	1280,
-		"yReso":	720,
+		"fileName":	"..\\builds\\test\\out.exe",
+		"xReso":	1920,
+		"yReso":	1080,
 		"durationInSeconds":	120,
 		"numSoundBufferSamples":	5767168,
 		"numSoundBufferAvailableSamples":	5767168,
