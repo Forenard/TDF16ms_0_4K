@@ -280,20 +280,22 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp, out vec3 srp)
     {
         srp = rp = ro + rd * len;
 
+        // polar
+        vec2 prp = mod(rp.xz, 40.0) - 20.0;
+        rp.xz = (105.0 <= Time && Time < 120.0 ? vec2((atan(prp.y, prp.x) + PI) / PI * 24 - Time * 0.38, 8.0 - length(prp)) : rp.xz);
         // pmod
         float angle = mod(atan(rp.y, rp.z) + floor(rp.x / 3.0) * 0.1, PI * 2.0 / 3.0) - PI / 3.0;
-        rp.zy = (105.0 <= Time && Time < 120.0 ? vec2(cos(angle), sin(angle)) * length(rp.zy) - 5.0 : rp.zy);
-        // polar
-        rp.xz = (120.0 <= Time && Time < 135.0 ? vec2((atan(rp.z, rp.x) + PI) / PI * 24, length(rp.xz) - 8.0) : rp.xz);
-        // rp.xz = (120.0 <= Time && Time < 150.0 ? vec2((atan(rp.z, rp.x) + PI) / PI * 24, 12.0 - length(rp.xz)) : rp.xz);
+        rp.zy = (120.0 <= Time && Time < 135.0 ? vec2(cos(angle), sin(angle)) * length(rp.zy) - 5.0 : rp.zy);
         // beat shift
         float bt = Time / STEP2TIME / 32 + 0.125 + floor(rp.x / 6) / 4;
         float sy = floor(bt) - pow(1.0 / (1.0 + fract(bt) * 8), 5.0);
+        // y方向にずらす
         rp.y += 4.0 * sy * sign(fract(-rp.x / 12) - 0.5) * float(90.0 <= Time && Time < 135.0);
+        // z方向にずらす
         // しかく
         // rp.z -= cos(dot(vec2(0.75,0.5), abs(floor(rp.xy / vec2(3, 2)) + 0.5)) + Time) * max(0, (Time - 105.0) / 30.0);
         // まる
-        rp.z -= cos(length((floor(rp.xy / vec2(3, 2)) + 0.5) * vec2(1.5, 1)) + Time) * max(0, (Time - 105.0) / 30.0);
+        rp.z -= cos(length((floor(rp.xy / vec2(3, 2)) + 0.5) * vec2(1.5, 1)) + Time) * max(0, (Time - 105.0) / 45.0);
 
         // sdf
         dist = sdf(rp);
@@ -304,7 +306,7 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp, out vec3 srp)
         // traverse
         vec2 irp = floor(rp.xy / vec2(3, 2) + sign(rd.xy)) * vec2(3, 2) + vec2(1.5, 1);
         vec2 bd = abs(irp - rp.xy) - vec2(1.5, 1);
-        bd = max(bd, 0.0) / abs(rd.xy) + DistMin + step(rp.z, -40) * LenMax;
+        bd = max(bd, 0.0) / abs(rd.xy) + DistMin;
         float td = min(bd.x, bd.y);
 
         // sdf
@@ -348,7 +350,7 @@ void main()
     // Set Time
     Time = time;
     // Time = 33.0;
-    // Time = time + 135.0;
+    // Time = time + 105.0;
     // Get UVs
     const vec2 fc = gl_FragCoord.xy, res = resolution.xy, asp = res / min(res.x, res.y);
     const vec2 uv = fc / res;
@@ -368,10 +370,10 @@ void main()
     // Parameter
     vec3 ro, dir, rd;
     // シーケンス
-    const vec3 ro0[] = vec3[](vec3(0.2, 0.2, 2.2), vec3(0.4, 0.2, 2.0), vec3(-2.2, -1.0, -0.2), vec3(-0.5, -1.8, -0.5), vec3(0, 0, -1.5), vec3(0, 0, -3), vec3(4, 0, -6), vec3(0), vec3(0), vec3(0, 0, -4));
-    const vec3 ro1[] = vec3[](vec3(0.1, 0.1, 1.5), vec3(0.35, 0.6, 0.4), vec3(-0.1, -1.0, -0.2), vec3(-2.8, -1.8, -0.5), vec3(0.4, -6, -1.5), vec3(0, 0, -15), vec3(-4, 40, -9), vec3(-50, 0, 0), vec3(0, 70, 0), vec3(0, 0, -40));
-    const vec3 dir0[] = vec3[](vec3(0.5, 1.5, 1), vec3(-0.5, -1, -1), vec3(-1, -0.1, 0.3), vec3(0.8, 0.8, 1), vec3(0.2, 0.1, 1), vec3(0, 0, 1), vec3(-0.3, 0.5, 1), vec3(-1, 0.2, 0), vec3(1, 1, 0), vec3(0, 0, 1));
-    const vec3 dir1[] = vec3[](vec3(0.1, 0.1, 1), vec3(0, 0.5, -1), vec3(-1, -0.1, 1), vec3(0.1, 0.8, 1.5), vec3(-0.2, -0.1, 1), vec3(0, 0, 1), vec3(0.3, 0.5, 1), vec3(-1, -0.2, 0), vec3(0, 1, 0.1), vec3(0, 0, 1));
+    const vec3 ro0[] = vec3[](vec3(0.2, 0.2, 2.2), vec3(0.4, 0.2, 2.0), vec3(-2.2, -1.0, -0.2), vec3(-0.5, -1.8, -0.5), vec3(0, 0, -1.5), vec3(0, 0, -3), vec3(4, 0, -6), vec3(-10, 0, 20), vec3(0), vec3(0, 0, -4));
+    const vec3 ro1[] = vec3[](vec3(0.1, 0.1, 1.5), vec3(0.35, 0.6, 0.4), vec3(-0.1, -1.0, -0.2), vec3(-2.8, -1.8, -0.5), vec3(0.4, -6, -1.5), vec3(0, 0, -15), vec3(-4, 40, -9), vec3(-10, -10, 30), vec3(-50, 0, 0), vec3(0, 0, -40));
+    const vec3 dir0[] = vec3[](vec3(0.5, 1.5, 1), vec3(-0.5, -1, -1), vec3(-1, -0.1, 0.3), vec3(0.8, 0.8, 1), vec3(0.2, 0.1, 1), vec3(0, 0, 1), vec3(-0.3, 0.5, 1), vec3(-0.4, 0.1, 1), vec3(-1, 0.1, 0), vec3(0, 0, 1));
+    const vec3 dir1[] = vec3[](vec3(0.1, 0.1, 1), vec3(0, 0.5, -1), vec3(-1, -0.1, 1), vec3(0.1, 0.8, 1.5), vec3(-0.2, -0.1, 1), vec3(0, 0, 1), vec3(0.3, 0.5, 1), vec3(-0.1, -0.1, 1), vec3(-1, -0.1, 0), vec3(0, 0, 1));
     float ft = Time / 15;
     int id = int(ft) % 10;
     float lt = fract(ft) * step(ft, 10);
