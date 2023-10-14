@@ -496,7 +496,7 @@ void main()
     // Vignette
     col *= smoothstep(0.8, 0.4, length(uv - 0.5));
     // bloom
-    col = mix(col, textureLod(backBuffer0, uv, 2.0).rgb, 0.35);
+    col = mix(col, textureLod(backBuffer0, uv, 2.0).rgb, 0.2);
     // aces
     const float a = 2.51;
     const float b = 0.03;
