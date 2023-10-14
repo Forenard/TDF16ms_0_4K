@@ -2,7 +2,7 @@
 
 const float TAU = acos(-1) * 2;
 
-const float SAMPLES_PER_SEC = 48000;
+const float SAMPLES_PER_SEC = 48000.;
 
 const float STEP2TIME = 60.0 / 128 / 4;
 const int SAMPLES_PER_STEP = 5625;
