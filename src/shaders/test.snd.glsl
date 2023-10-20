@@ -214,7 +214,7 @@ void main()
 
     vec2 i_wave = fbm32(vec2(4 * orbit(1000 * t) + 480 * t)).xy - 0.5;
 
-    dest += 0.1 * tanh(6 * i_env * i_wave);
+    dest += 0.2 * tanh(6 * i_env * i_wave);
   }
 
   if(i_tenkaiPercActive)

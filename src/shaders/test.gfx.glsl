@@ -33,7 +33,7 @@ layout(location = 0) out vec4 outColor0;
 // ................................................
 // 
 // #define LoopMax 256
-#define LenMax 30.0
+// #define LenMax 30.0
 #define NormalEPS 0.001
 #define DistMin 0.001
 
@@ -274,9 +274,9 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp, out vec3 srp)
 {
     // const float w = 0.01;
     const float minv = 0.15;
-    float v = 1.0;
-    float dist, len = 0.0, mist;
-    for(int i = 0; i < 256; i++)
+    float v = 1;
+    float dist, len = 0, mist;
+    for(int i = 0; i < 200; i++)
     {
         srp = rp = ro + rd * len;
 
@@ -317,7 +317,7 @@ vec2 march(vec3 rd, vec3 ro, out vec3 rp, out vec3 srp)
         {
             return vec2(mist, minv);
         }
-        if(len > LenMax + step(105, Time) * 1000)
+        if(len > 50 + step(105, Time) * 200)
         {
             return vec2(0, v);
         }
